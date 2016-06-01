@@ -2,6 +2,7 @@ package vsphere
 
 import (
 	"github.com/vmware/govmomi"
+	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/vim25/types"
 	"golang.org/x/net/context"
 	"fmt"
@@ -14,7 +15,7 @@ func (d *dvs) makeDVSConfigSpec() (types.DVSCreateSpec, error) {
 				Contact: d.contact.infos,
 				Name: d.contact.name,
 			},
-			ExtensionKey: d.key,
+			ExtensionKey: d.extensionKey,
 			Description: d.description,
 			Name: d.name,
 			NumStandalonePorts: int32(d.numStandalonePorts),
@@ -30,18 +31,28 @@ func (d *dvs) makeDVSConfigSpec() (types.DVSCreateSpec, error) {
 
 }
 
-func (d *dvs) createSwitch(c *govmomi.Client) error {
+func switchBoilerplate(c *govmomi.Client) (*object.Datacenter, *object.DatacenterFolders, error) {
 	datacenter, err := getDatacenter(c, d.datacenter)
 	if err != nil {
-		return fmt.Errorf("Cannot get datacenter from %+v [%+v]", d, err)
+		return nil, nil, fmt.Errorf("Cannot get datacenter from %+v [%+v]", d, err)
 	}
 
 	// get Network Folder from datacenter
 	dcFolders, err := datacenter.Folders(context.TODO())
 	if err != nil {
-		return fmt.Errorf("Cannot get folders for datacenter %+v [%+v]", datacenter, err)
+		return nil, nil, fmt.Errorf("Cannot get folders for datacenter %+v [%+v]", datacenter, err)
 	}
 	folder := dcFolders.NetworkFolder
+	return datacenter, dcFolders, nil
+}
+
+
+func (d *dvs) createSwitch(c *govmomi.Client) error {
+	_, folders, err := switchBoilerplate(c)
+	if err != nil {
+		return fmt.Errorf("Could not get datacenter and  folders: %+v", err)
+	}
+	folder := folders.NetworkFolder
 
 	// using Network Folder, create the DVSCreateSpec (pretty much a mapping of the config)
 	spec, err := d.makeDVSConfigSpec()
@@ -57,4 +68,15 @@ func (d *dvs) createSwitch(c *govmomi.Client) error {
 		return fmt.Errorf("Could not create the DVS: %+v", err)
 	}
 	return nil
+}
+
+// get a DVS from its name and populate the DVS with its infos
+func (d *dvs) getDVS(c *govmomi.Client, dvsName string) error {
+	datacenter, folders, err := switchBoilerplate(c)
+	if err != nil {
+		return fmt.Errorf("Could not get datacenter and  folders: %+v", err)
+	}
+	folder := folders.NetworkFolder
+	folder.
+
 }

@@ -4,7 +4,14 @@ import "github.com/hashicorp/terraform/helper/schema"
 import "log"
 import "fmt"
 
+// name format for DVS: datacenter, name
 const dvs_name_format = "DVS:[%s] %s"
+// name format for DVPG: datacenter, switch name, name
+const dvpg_name_format = "DVPG:[%s.%s] %s"
+// name format for MapHostDVS: datacenter, DVS name, Host name
+const maphostdvs_name_format = "MapHostDVS:[%s] %s-%s"
+// name format for MapVMDVPG: datacenter, switch name, port name, vm name
+const mapvmdvpg_name_format = "MapVMDVPG:[%s] %s.%s-%s"
 
 /* functions for DistributedVirtualSwitch */
 func resourceVSphereDVSCreate(d *schema.ResourceData, meta interface{}) error {
@@ -34,6 +41,7 @@ func resourceVSphereDVSRead(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 	log.Printf("[DEBUG] Client: %+v", client)
+	// load the state from vSphere and provide the hydrated object.
 	return nil
 }
 
@@ -44,6 +52,8 @@ func resourceVSphereDVSUpdate(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 	log.Printf("[DEBUG] Client: %+v", client)
+	// detect the different changes in the object and perform needed updates
+
 	return nil
 }
 
@@ -54,6 +64,9 @@ func resourceVSphereDVSDelete(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 	log.Printf("[DEBUG] Client: %+v", client)
+	// remove the object and its dependencies in vSphere
+
+	// then remove object from the datastore.
 	d.SetId("")
 	return nil
 }

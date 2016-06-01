@@ -7,7 +7,7 @@ type dvs 					struct {
 	name					string
 	folder					string
 	datacenter				string
-	key					string
+	extensionKey				string
 	description				string
 	contact					struct {
 		name				string
@@ -64,8 +64,8 @@ func parseDVS(d *schema.ResourceData) (*dvs, error) {
 	if v, ok := d.GetOk("datacenter"); ok {
 		f.datacenter = v.(string)
 	}
-	if v, ok := d.GetOk("key"); ok {
-		f.key = v.(string)
+	if v, ok := d.GetOk("extension_key"); ok {
+		f.extensionKey = v.(string)
 	}
 	if v, ok := d.GetOk("description"); ok {
 		f.description = v.(string)
@@ -105,7 +105,7 @@ func resourceVSphereDVSSchema() map[string]*schema.Schema {
 			Required:		true,
 			// ForceNew:		true,
 		},
-		"key": &schema.Schema {
+		"extension_key": &schema.Schema {
 			Type:				schema.TypeString,
 			Optional:		true,
 		},

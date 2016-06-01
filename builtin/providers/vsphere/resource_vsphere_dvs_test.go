@@ -1,21 +1,55 @@
 package vsphere
 
 import (
-	"fmt"
-	"os"
 	"testing"
-
+	"fmt"
+	"log"
+	"os"
 	"github.com/hashicorp/terraform/helper/resource"
 	"github.com/hashicorp/terraform/terraform"
-	"github.com/vmware/govmomi"
-	"github.com/vmware/govmomi/find"
-	"github.com/vmware/govmomi/object"
-	"golang.org/x/net/context"
 )
 
 // test we can create a DVS
 func TestAccVSphereDVS_create(t *testing.T) {
+	handleName := "dvs_testacc"
+	resourceName := "dvs_testacceptance"
+	dvsConfigFilled := fmt.Sprintf(
+		dvsConfig,
+		handleName, // resource handle name
+		resourceName, // resource name
+		os.Getenv("VSPHERE_DATACENTER"), // datacenter
+		"", // extension_key
+		"An Acceptance Test DVS - temporary", // description
+		"Terraform Test", // contact.name
+		"Non Existent <terraform@example.com>", // contact.infos
+		"true", // auto_preinstall_allowed
+		"true", // auto_upgrade_allowed
+		"true", // partial_upgrade_allowed,
+		"198.51.100.1", // switch_ip_address
+		"5")// num_standalone_ports
+	log.Printf("create: using config\n%s", dvsConfigFilled)
+	resource.Test(t, resource.TestCase{
+		PreCheck:	func() { testAccPreCheck(t) },
+		Providers:	testAccProviders,
+		CheckDestroy:	nil,
+		Providers:	testAccProviders,
+		Steps:		[]resource.TestStep{
+			resource.TestStep{
+				Config: dvsConfigFilled,
+				Check: resource.ComposeTestCheckFunc(wTestDVSExists(resourceName))
+			},
+		},
 
+	})
+}
+
+func wTestDVSExists(handleName string) {
+	return func(s *terraform.State) error {
+		// this internal function must test whether
+		// `handleName` exists in the visible vSphere.
+		// if return nil: success, else failure
+		return nil
+	}
 }
 
 // test we can read a DVS
@@ -46,25 +80,19 @@ func TestAccVSphereDVSPortGroup_update(t *testing.T) {
 func TestAccVSphereDVSPortGroup_delete(t *testing.T) {
 }
 
-// test we can bind hosts to a DVS
-func TestAccVSphereDVS_bind_host(t *testing.T) {
+// test DVSMapHostDvs
+func TestAccVSphereDVSMapHostDVS_create(t *testing.T) {}
+func TestAccVSphereDVSMapHostDVS_read(t *testing.T) {}
+func TestAccVSphereDVSMapHostDVS_update(t *testing.T) {}
+func TestAccVSphereDVSMapHostDVS_delete(t *testing.T) {}
 
-}
+// test DVSMapVmDVSPG
+func TestAccVSphereDVSMapVMDVPG_create(t *testing.T) {}
+func TestAccVSphereDVSMapVMDVPG_read(t *testing.T) {}
+func TestAccVSphereDVSMapVMDVPG_update(t *testing.T) {}
+func TestAccVSphereDVSMapVMDVPG_delete(t *testing.T) {}
 
-// test we can unbind hosts from a DVS
-func TestAccVSphereDVS_bind_host(t *testing.T) {
 
-}
-
-// test we can bind VMs to a DVSPG
-func TestAccVSphereDVSPG_bind_vm(t *testing.T) {
-
-}
-
-// test we can unbind VMs from a DVSPG
-func TestAccVSphereDVSPG_unbind_vm(t *testing.T) {
-
-}
 
 // definition of the basic DVS config (without host)
 /*
@@ -77,7 +105,7 @@ const dvsConfig = `
 resource "vsphere_dvs" "%s" {
 	name = "%s"
 	datacenter = "%s"
-	key = "%s"
+	extension_key = "%s"
 	description = "%s"
 	contact {
 		name = "%s"
@@ -87,7 +115,7 @@ resource "vsphere_dvs" "%s" {
 		auto_preinstall_allowed = "%s"
 		auto_upgrade_allowed = "%s"
 		partial_upgrade_allowed = "%s"
-  }
+  	}
 	switch_ip_address = "%s"
 	num_standalone_ports = "%s"
 }

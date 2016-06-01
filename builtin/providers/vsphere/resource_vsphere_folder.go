@@ -1,5 +1,3 @@
-package vsphere
-
 import (
 	"fmt"
 	"log"
@@ -222,16 +220,4 @@ func deleteFolder(client *govmomi.Client, f *folder) error {
 		}
 	}
 	return nil
-}
-
-// getDatacenter gets datacenter object
-func getDatacenter(c *govmomi.Client, dc string) (*object.Datacenter, error) {
-	finder := find.NewFinder(c.Client, true)
-	if dc != "" {
-		d, err := finder.Datacenter(context.TODO(), dc)
-		return d, err
-	} else {
-		d, err := finder.DefaultDatacenter(context.TODO())
-		return d, err
-	}
 }
