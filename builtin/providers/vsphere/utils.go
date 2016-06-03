@@ -1,8 +1,10 @@
 package vsphere
 
 import "github.com/vmware/govmomi"
+import "github.com/vmware/govmomi/find"
 import "fmt"
 import "github.com/vmware/govmomi/object"
+import "golang.org/x/net/context"
 
 func getGovmomiClient(meta interface{}) (*govmomi.Client, error) {
        client, casted := meta.(*govmomi.Client)

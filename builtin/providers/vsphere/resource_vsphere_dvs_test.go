@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"net/url"
+	"golang.org/x/net/context"
+	"github.com/vmware/govmomi"
 	"github.com/hashicorp/terraform/helper/resource"
 	"github.com/hashicorp/terraform/terraform"
 )
@@ -30,27 +33,52 @@ func TestAccVSphereDVS_create(t *testing.T) {
 	log.Printf("create: using config\n%s", dvsConfigFilled)
 	resource.Test(t, resource.TestCase{
 		PreCheck:	func() { testAccPreCheck(t) },
-		Providers:	testAccProviders,
 		CheckDestroy:	nil,
 		Providers:	testAccProviders,
 		Steps:		[]resource.TestStep{
 			resource.TestStep{
 				Config: dvsConfigFilled,
-				Check: resource.ComposeTestCheckFunc(wTestDVSExists(resourceName))
+				Check: wTestDVSExists(resourceName),
 			},
 		},
 
 	})
 }
 
-func wTestDVSExists(handleName string) {
+func wTestDVSExists(handleName string) func(s *terraform.State) error {
 	return func(s *terraform.State) error {
 		// this internal function must test whether
 		// `handleName` exists in the visible vSphere.
 		// if return nil: success, else failure
-		return nil
+		client, datacenter, err := boilerplateClient(handleName, s)
+		if err != nil {
+			return err
+		}
+		// here we will need to set-up a proper resource type for the Provider
+		// itemConf := s.RootModule().Resources[handleName].(dvs)
+		return loadDVS(client, datacenter, handleName, dvs{})
 	}
 }
+
+func boilerplateClient(n string, s *terraform.State) (client *govmomi.Client, datacenter string, err error) {
+	err = nil
+	client = nil
+	rs, ok := s.RootModule().Resources[n]
+	if !ok {
+		err = fmt.Errorf("Resource not found: %s", n)
+		return
+	}
+
+	if rs.Primary.ID == "" {
+		err = fmt.Errorf("No ID is set")
+		return
+	}
+
+	client = testAccProvider.Meta().(*govmomi.Client)
+	return
+
+}
+
 
 // test we can read a DVS
 func TestAccVSphereDVS_read(t *testing.T) {
@@ -93,6 +121,47 @@ func TestAccVSphereDVSMapVMDVPG_update(t *testing.T) {}
 func TestAccVSphereDVSMapVMDVPG_delete(t *testing.T) {}
 
 
+// unit tests for small pieces of code
+func TestApiListNetwork(t *testing.T) {
+	if os.Getenv("TESTVAR") == "" {
+		t.SkipNow()
+	}
+	dvsitem := dvs{
+		datacenter: os.Getenv("VSPHERE_DATACENTER"),
+	}
+	cli, err := getTestGovmomiClient()
+	if err != nil {
+		t.Log("Oops, could not get VMOMI client", err)
+		t.FailNow()
+	}
+	dvss, err := dvsitem.getDVS(cli, os.Getenv("TESTVAR"))
+	if err != nil {
+		t.Log("Oops, could not load data:", err)
+		t.FailNow()
+	}
+	t.Log("getDVS did not crash", dvss)
+
+	if err:=loadDVS(cli, dvsitem.datacenter, os.Getenv("TESTVAR"), dvsitem); err != nil {
+		t.Log("[fail] DVSS:", dvss)
+		t.Log("loadDVS failed:", err)
+		t.FailNow()
+	}
+	log.Printf("DVS: %+v", dvsitem)
+}
+
+func getTestGovmomiClient() (*govmomi.Client, error) {
+	u, err := url.Parse("https://" + os.Getenv("VSPHERE_URL") + "/sdk")
+	if err != nil {
+		return nil, fmt.Errorf("Cannot parse VSPHERE_URL")
+	}
+	u.User = url.UserPassword(os.Getenv("VSPHERE_USER"), os.Getenv("VSPHERE_PASSWORD"))
+
+	cli, err := govmomi.NewClient(context.TODO(), u, true)
+	if err != nil {
+		return nil, err
+	}
+	return cli, nil
+}
 
 // definition of the basic DVS config (without host)
 /*

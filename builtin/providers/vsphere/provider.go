@@ -68,6 +68,10 @@ func Provider() terraform.ResourceProvider {
 			"vsphere_folder":          resourceVSphereFolder(),
 			"vsphere_virtual_disk":    resourceVSphereVirtualDisk(),
 			"vsphere_virtual_machine": resourceVSphereVirtualMachine(),
+			"vsphere_dvs":             resourceVSphereDVS(),
+			"vsphere_dvs_port_group":  resourceVSphereDVSPG(),
+			"vsphere_dvs_vm_port":     resourceVSphereMapVMDVPG(),
+			"vsphere_dvs_host_map":    resourceVSphereMapHostDVS(),
 		},
 
 		ConfigureFunc: providerConfigure,

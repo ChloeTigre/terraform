@@ -96,15 +96,15 @@ func resourceVSphereMapHostDVSCreate(d *schema.ResourceData, meta interface{}) e
 	return nil
 }
 
-func resourceVSphereMapHostDVSPGRead(d *schema.ResourceData, meta interface{}) error {
+func resourceVSphereMapHostDVSRead(d *schema.ResourceData, meta interface{}) error {
 	return nil
 }
 
-func resourceVSphereMapHostDVSPGUpdate(d *schema.ResourceData, meta interface{}) error {
+func resourceVSphereMapHostDVSUpdate(d *schema.ResourceData, meta interface{}) error {
 	return nil
 }
 
-func resourceVSphereMapHostDVSPGDelete(d *schema.ResourceData, meta interface{}) error {
+func resourceVSphereMapHostDVSDelete(d *schema.ResourceData, meta interface{}) error {
 	d.SetId("")
 	return nil
 }
@@ -115,15 +115,15 @@ func resourceVSphereMapVMDVPGCreate(d *schema.ResourceData, meta interface{}) er
 	return nil
 }
 
-func resourceVSphereMapVMDVPGPGRead(d *schema.ResourceData, meta interface{}) error {
+func resourceVSphereMapVMDVPGRead(d *schema.ResourceData, meta interface{}) error {
 	return nil
 }
 
-func resourceVSphereMapVMDVPGPGUpdate(d *schema.ResourceData, meta interface{}) error {
+func resourceVSphereMapVMDVPGUpdate(d *schema.ResourceData, meta interface{}) error {
 	return nil
 }
 
-func resourceVSphereMapVMDVPGPGDelete(d *schema.ResourceData, meta interface{}) error {
+func resourceVSphereMapVMDVPGDelete(d *schema.ResourceData, meta interface{}) error {
 	d.SetId("")
 	return nil
 }

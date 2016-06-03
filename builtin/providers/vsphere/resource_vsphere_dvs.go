@@ -120,11 +120,11 @@ func resourceVSphereDVSSchema() map[string]*schema.Schema {
 				Schema: map[string]*schema.Schema{
 					"name": &schema.Schema {
 						Type:			schema.TypeString,
-						Optional: false,
+						Required: true,
 					},
 					"infos": &schema.Schema {
 						Type:			schema.TypeString,
-						Optional: false,
+						Required: true,
 					},
 				},
 			},
@@ -136,15 +136,15 @@ func resourceVSphereDVSSchema() map[string]*schema.Schema {
 				Schema: map[string]*schema.Schema{
 					"auto_preinstall_allowed": &schema.Schema {
 						Type:			schema.TypeBool,
-						Required: false,
+						Optional: true,
 					},
 					"auto_upgrade_allowed": &schema.Schema {
 						Type:			schema.TypeBool,
-						Required: false,
+						Optional: true,
 					},
 					"partial_upgrade_allowed": &schema.Schema {
 						Type:			schema.TypeBool,
-						Required: false,
+						Optional: true,
 					},
 				},
 			},
@@ -199,31 +199,31 @@ func resourceVSphereDVSPGSchema() map[string]*schema.Schema {
 				Schema: map[string]*schema.Schema{
 					"allow_block_override": &schema.Schema {
 						Type:			schema.TypeBool,
-						Required: false,
+						Optional: true,
 					},
 					"allow_live_port_moving": &schema.Schema {
 						Type:			schema.TypeBool,
-						Required: false,
+						Optional: true,
 					},
 					"allov_network_resources_pool_override": &schema.Schema {
 						Type:			schema.TypeBool,
-						Required: false,
+						Optional: true,
 					},
 					"port_config_reset_disconnect": &schema.Schema {
 						Type:			schema.TypeBool,
-						Required: false,
+						Optional: true,
 					},
 					"allow_shaping_override": &schema.Schema {
 						Type:			schema.TypeBool,
-						Required: false,
+						Optional: true,
 					},
 					"allow_traffic_filter_override": &schema.Schema {
 						Type:			schema.TypeBool,
-						Required: false,
+						Optional: true,
 					},
 					"allow_vendor_config_override": &schema.Schema {
 						Type:			schema.TypeBool,
-						Required: false,
+						Optional: true,
 					},
 				},
 			},
