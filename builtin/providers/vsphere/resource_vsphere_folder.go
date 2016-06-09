@@ -1,9 +1,11 @@
 package vsphere
 
-import ("fmt"
+import (
+	"fmt"
 	"log"
 	"path"
 	"strings"
+
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"

@@ -1,15 +1,16 @@
 package vsphere
 
 import (
-	"testing"
 	"fmt"
 	"log"
-	"os"
 	"net/url"
-	"golang.org/x/net/context"
-	"github.com/vmware/govmomi"
+	"os"
+	"testing"
+
 	"github.com/hashicorp/terraform/helper/resource"
 	"github.com/hashicorp/terraform/terraform"
+	"github.com/vmware/govmomi"
+	"golang.org/x/net/context"
 )
 
 // test we can create a DVS
@@ -18,30 +19,29 @@ func TestAccVSphereDVS_create(t *testing.T) {
 	resourceName := "dvs_testacceptance"
 	dvsConfigFilled := fmt.Sprintf(
 		dvsConfig,
-		handleName, // resource handle name
-		resourceName, // resource name
+		handleName,                      // resource handle name
+		resourceName,                    // resource name
 		os.Getenv("VSPHERE_DATACENTER"), // datacenter
 		"", // extension_key
-		"An Acceptance Test DVS - temporary", // description
-		"Terraform Test", // contact.name
+		"An Acceptance Test DVS - temporary",   // description
+		"Terraform Test",                       // contact.name
 		"Non Existent <terraform@example.com>", // contact.infos
-		"true", // auto_preinstall_allowed
-		"true", // auto_upgrade_allowed
-		"true", // partial_upgrade_allowed,
+		"true",         // auto_preinstall_allowed
+		"true",         // auto_upgrade_allowed
+		"true",         // partial_upgrade_allowed,
 		"198.51.100.1", // switch_ip_address
-		"5")// num_standalone_ports
+		"5")            // num_standalone_ports
 	log.Printf("create: using config\n%s", dvsConfigFilled)
 	resource.Test(t, resource.TestCase{
-		PreCheck:	func() { testAccPreCheck(t) },
-		CheckDestroy:	nil,
-		Providers:	testAccProviders,
-		Steps:		[]resource.TestStep{
+		PreCheck:     func() { testAccPreCheck(t) },
+		CheckDestroy: nil,
+		Providers:    testAccProviders,
+		Steps: []resource.TestStep{
 			resource.TestStep{
 				Config: dvsConfigFilled,
-				Check: wTestDVSExists(resourceName),
+				Check:  wTestDVSExists(resourceName),
 			},
 		},
-
 	})
 }
 
@@ -80,7 +80,6 @@ func boilerplateClient(n string, s *terraform.State) (client *govmomi.Client, da
 
 }
 
-
 // test we can read a DVS
 func TestAccVSphereDVS_read(t *testing.T) {
 }
@@ -89,6 +88,7 @@ func TestAccVSphereDVS_read(t *testing.T) {
 func TestAccVSphereDVS_update(t *testing.T) {
 
 }
+
 // test we can delete a DVS
 func TestAccVSphereDVS_delete(t *testing.T) {
 }
@@ -105,22 +105,22 @@ func TestAccVSphereDVSPortGroup_read(t *testing.T) {
 func TestAccVSphereDVSPortGroup_update(t *testing.T) {
 
 }
+
 // test we can delete a DVSPortGroup
 func TestAccVSphereDVSPortGroup_delete(t *testing.T) {
 }
 
 // test DVSMapHostDvs
 func TestAccVSphereDVSMapHostDVS_create(t *testing.T) {}
-func TestAccVSphereDVSMapHostDVS_read(t *testing.T) {}
+func TestAccVSphereDVSMapHostDVS_read(t *testing.T)   {}
 func TestAccVSphereDVSMapHostDVS_update(t *testing.T) {}
 func TestAccVSphereDVSMapHostDVS_delete(t *testing.T) {}
 
 // test DVSMapVmDVSPG
 func TestAccVSphereDVSMapVMDVPG_create(t *testing.T) {}
-func TestAccVSphereDVSMapVMDVPG_read(t *testing.T) {}
+func TestAccVSphereDVSMapVMDVPG_read(t *testing.T)   {}
 func TestAccVSphereDVSMapVMDVPG_update(t *testing.T) {}
 func TestAccVSphereDVSMapVMDVPG_delete(t *testing.T) {}
-
 
 // unit tests for small pieces of code
 func TestApiListNetwork(t *testing.T) {
@@ -142,7 +142,7 @@ func TestApiListNetwork(t *testing.T) {
 	}
 	t.Log("getDVS did not crash", dvss)
 
-	if err:=loadDVS(cli, dvsitem.datacenter, os.Getenv("TESTVAR"), &dvsitem); err != nil {
+	if err := loadDVS(cli, dvsitem.datacenter, os.Getenv("TESTVAR"), &dvsitem); err != nil {
 		t.Log("[fail] DVSS:", dvss)
 		t.Log("loadDVS failed:", err)
 		t.FailNow()
@@ -190,7 +190,6 @@ resource "vsphere_dvs" "%s" {
 	num_standalone_ports = "%s"
 }
 `
-
 
 // represent a DistributedVirtualSwitchHostMemberConfigSpec
 // minimal, default support

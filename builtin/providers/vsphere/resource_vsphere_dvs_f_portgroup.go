@@ -2,8 +2,9 @@ package vsphere
 
 import (
 	"fmt"
-	"github.com/hashicorp/terraform/helper/schema"
 	"log"
+
+	"github.com/hashicorp/terraform/helper/schema"
 )
 
 // name format for DVPG: datacenter, switch name, name

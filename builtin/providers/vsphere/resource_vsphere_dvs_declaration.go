@@ -1,12 +1,13 @@
 package vsphere
+
 import "github.com/hashicorp/terraform/helper/schema"
 
 func resourceVSphereDVS() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceVSphereDVSCreate,
 		Read:   resourceVSphereDVSRead,
-		Update:   resourceVSphereDVSUpdate,
-		Delete:   resourceVSphereDVSDelete,
+		Update: resourceVSphereDVSUpdate,
+		Delete: resourceVSphereDVSDelete,
 		Schema: resourceVSphereDVSSchema(),
 	}
 }
@@ -15,8 +16,8 @@ func resourceVSphereDVPG() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceVSphereDVPGCreate,
 		Read:   resourceVSphereDVPGRead,
-		Update:   resourceVSphereDVPGUpdate,
-		Delete:   resourceVSphereDVPGDelete,
+		Update: resourceVSphereDVPGUpdate,
+		Delete: resourceVSphereDVPGDelete,
 		Schema: resourceVSphereDVPGSchema(),
 	}
 }
@@ -24,7 +25,7 @@ func resourceVSphereDVPG() *schema.Resource {
 func resourceVSphereMapHostDVS() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceVSphereMapHostDVSCreate,
-		Read: resourceVSphereMapHostDVSRead,
+		Read:   resourceVSphereMapHostDVSRead,
 		Delete: resourceVSphereMapHostDVSDelete,
 		Schema: resourceVSphereMapHostDVSSchema(),
 	}
@@ -33,7 +34,7 @@ func resourceVSphereMapHostDVS() *schema.Resource {
 func resourceVSphereMapVMDVPG() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceVSphereMapVMDVPGCreate,
-		Read: resourceVSphereMapVMDVPGRead,
+		Read:   resourceVSphereMapVMDVPGRead,
 		// Update: resourceVSphereMapVMDVPGUpdate, // not needed
 		Delete: resourceVSphereMapVMDVPGDelete,
 		Schema: resourceVSphereMapVMDVPGSchema(),

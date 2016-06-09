@@ -1,17 +1,20 @@
 package vsphere
 
-import ("github.com/vmware/govmomi"
-        "github.com/vmware/govmomi/find"
-        "github.com/vmware/govmomi/object"
-        "fmt"
-        "golang.org/x/net/context")
+import (
+	"fmt"
+
+	"github.com/vmware/govmomi"
+	"github.com/vmware/govmomi/find"
+	"github.com/vmware/govmomi/object"
+	"golang.org/x/net/context"
+)
 
 func getGovmomiClient(meta interface{}) (*govmomi.Client, error) {
-       client, casted := meta.(*govmomi.Client)
-       if !casted {
-               return nil, fmt.Errorf("%+v is not castable as govmomi.Client", meta)
-       }
-       return client, nil
+	client, casted := meta.(*govmomi.Client)
+	if !casted {
+		return nil, fmt.Errorf("%+v is not castable as govmomi.Client", meta)
+	}
+	return client, nil
 }
 
 // getDatacenter gets datacenter object
@@ -27,26 +30,26 @@ func getDatacenter(c *govmomi.Client, dc string) (*object.Datacenter, error) {
 
 // parse ID to components (DVS)
 func parseDVSID(id string) (out *dvsID, err error) {
-        _, err = fmt.Sscanf(id, dvs_name_format, out.datacenter, out.name)
-        return
+	_, err = fmt.Sscanf(id, dvs_name_format, out.datacenter, out.name)
+	return
 }
 
 // parse ID to components (DVPG)
 func parseDVPGID(id string) (out *dvPGID, err error) {
-        _, err = fmt.Sscanf(id, dvpg_name_format, out.datacenter, out.switchName, out.name)
-        return
+	_, err = fmt.Sscanf(id, dvpg_name_format, out.datacenter, out.switchName, out.name)
+	return
 }
 
 // parse ID to components (MapHostDVS)
 func parseMapHostDVSID(id string) (out *mapHostDVSID, err error) {
-        _, err = fmt.Sscanf(id, maphostdvs_name_format, out.datacenter, out.switchName, out.hostName)
-        return
+	_, err = fmt.Sscanf(id, maphostdvs_name_format, out.datacenter, out.switchName, out.hostName)
+	return
 }
 
 // parse ID to components (MapHostDVS)
 func parseMapVMDVPGID(id string) (out *mapVMDVPGID, err error) {
-        _, err = fmt.Sscanf(id, mapvmdvpg_name_format, out.datacenter, out.switchName, out.portgroupName, out.vmName)
-        return
+	_, err = fmt.Sscanf(id, mapvmdvpg_name_format, out.datacenter, out.switchName, out.portgroupName, out.vmName)
+	return
 }
 
 // wait for task end
