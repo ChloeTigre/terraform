@@ -56,7 +56,8 @@ func wTestDVSExists(handleName string) func(s *terraform.State) error {
 		}
 		// here we will need to set-up a proper resource type for the Provider
 		// itemConf := s.RootModule().Resources[handleName].(dvs)
-		return loadDVS(client, datacenter, handleName, dvs{})
+		dvso := dvs{}
+		return loadDVS(client, datacenter, handleName, &dvso)
 	}
 }
 
@@ -141,7 +142,7 @@ func TestApiListNetwork(t *testing.T) {
 	}
 	t.Log("getDVS did not crash", dvss)
 
-	if err:=loadDVS(cli, dvsitem.datacenter, os.Getenv("TESTVAR"), dvsitem); err != nil {
+	if err:=loadDVS(cli, dvsitem.datacenter, os.Getenv("TESTVAR"), &dvsitem); err != nil {
 		t.Log("[fail] DVSS:", dvss)
 		t.Log("loadDVS failed:", err)
 		t.FailNow()
@@ -195,8 +196,9 @@ resource "vsphere_dvs" "%s" {
 // minimal, default support
 const dvsMapHostDvs = `
 resource "vsphere_dvs_host_map" "%s" {
-	host_name = "%s"
-	switch_name = "%s"
+	host = "%s"
+	switch = "%s"
+	nic_name = "%s"
 }
 `
 
@@ -206,6 +208,7 @@ resource "vsphere_dvs_host_map" "%s" {
 const dvsPortGroup = `
 resource "vsphere_dvs_port_group" "%s" {
 	name = "%s"
+	switch = "%s"
 	pg_type = "%s"
 	description = "%s"
 	auto_expand = "%s"
@@ -228,7 +231,7 @@ resource "vsphere_dvs_port_group" "%s" {
 const dvsVMPort = `
 resource "vsphere_dvs_vm_port" "%s" {
 	vm = "%s"
-	nic_index = "%s"
+	nic_label = "%s"
 	portgroup = "%s"
 	port = "%s"
 }

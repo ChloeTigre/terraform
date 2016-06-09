@@ -11,13 +11,13 @@ func resourceVSphereDVS() *schema.Resource {
 	}
 }
 
-func resourceVSphereDVSPG() *schema.Resource {
+func resourceVSphereDVPG() *schema.Resource {
 	return &schema.Resource{
-		Create: resourceVSphereDVSPGCreate,
-		Read:   resourceVSphereDVSPGRead,
-		Update:   resourceVSphereDVSPGUpdate,
-		Delete:   resourceVSphereDVSPGDelete,
-		Schema: resourceVSphereDVSPGSchema(),
+		Create: resourceVSphereDVPGCreate,
+		Read:   resourceVSphereDVPGRead,
+		Update:   resourceVSphereDVPGUpdate,
+		Delete:   resourceVSphereDVPGDelete,
+		Schema: resourceVSphereDVPGSchema(),
 	}
 }
 
@@ -25,7 +25,6 @@ func resourceVSphereMapHostDVS() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceVSphereMapHostDVSCreate,
 		Read: resourceVSphereMapHostDVSRead,
-		Update: resourceVSphereMapHostDVSUpdate,
 		Delete: resourceVSphereMapHostDVSDelete,
 		Schema: resourceVSphereMapHostDVSSchema(),
 	}
