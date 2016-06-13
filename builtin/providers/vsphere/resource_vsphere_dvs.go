@@ -133,8 +133,9 @@ func resourceVSphereDVPGSchema() map[string]*schema.Schema {
 			ForceNew: true,
 		},
 		"type": &schema.Schema{
-			Type:     schema.TypeString,
-			Required: true,
+			Type:        schema.TypeString,
+			Required:    true,
+			Description: "earlyBinding|ephemeral",
 		},
 		"description": &schema.Schema{
 			Type:     schema.TypeString,

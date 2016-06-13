@@ -9,8 +9,6 @@ import (
 
 // name format for DVPG: datacenter, switch name, name
 
-const dvpg_name_format = "vSphere::DVPG::%s---%s---%s"
-
 type dvPGID struct {
 	datacenter string
 	switchName string
@@ -38,7 +36,7 @@ func resourceVSphereDVPGCreate(d *schema.ResourceData, meta interface{}) error {
 	if err != nil {
 		return fmt.Errorf("Could not parse DVSID %s: %+v", item.switchId, err)
 	}
-	d.SetId(fmt.Sprint(dvpg_name_format, switchID.datacenter, switchID.name, item.name))
+	d.SetId(fmt.Sprint(dvpg_name_format, switchID.datacenter, switchID.path, item.name))
 	return nil
 }
 
@@ -90,8 +88,8 @@ func resourceVSphereDVPGDelete(d *schema.ResourceData, meta interface{}) error {
 	}
 	*/
 	// use Destroy_Task
-	d.SetId("")
-	return nil
+	//d.SetId("")
+	return fmt.Errorf("DVPG::Delete → Not implemented")
 }
 
 // parse a DVPG ResourceData to a dvs_port_group struct

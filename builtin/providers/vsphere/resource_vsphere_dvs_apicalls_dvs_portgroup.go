@@ -17,7 +17,7 @@ import (
 func (p *dvs_port_group) getVmomiDVPG(c *govmomi.Client, datacenter, switchName, name string) (*object.DistributedVirtualPortgroup, error) {
 	datacenterO, _, err := getDCAndFolders(c, datacenter)
 	if err != nil {
-		return nil, fmt.Errorf("Could not get datacenter and  folders: %+v", err)
+		return nil, fmt.Errorf("Could not get datacenter and folders: %+v", err)
 	}
 	finder := find.NewFinder(c.Client, true)
 	finder.SetDatacenter(datacenterO)
@@ -89,13 +89,17 @@ func (p *dvs_port_group) makeDVPGConfigSpec() types.DVPortgroupConfigSpec {
 func (p *dvs_port_group) createPortgroup(c *govmomi.Client) error {
 	createSpec := p.makeDVPGConfigSpec()
 	switchID, err := parseDVSID(p.switchId) // here we get the datacenter ID aswell
+	if err != nil {
+		return fmt.Errorf("Cannot parse switchID %s. %+v", p.switchId, err)
+	}
 	dvsObj := dvs{}
 
-	err = loadDVS(c, switchID.datacenter, switchID.name, &dvsObj)
+	err = loadDVS(c, switchID.datacenter, switchID.path, &dvsObj)
 	if err != nil {
-		return fmt.Errorf("Cannot loadDVS: %+v", err)
+		return fmt.Errorf("Cannot loadDVS %+v: %+v", switchID, err)
 	}
-	dvsMo, err := dvsObj.getDVS(c, dvsObj.name)
+	log.Printf("DVS is now: %+v", dvsObj)
+	dvsMo, err := dvsObj.getDVS(c, dvsObj.getFullName())
 	if err != nil {
 		return fmt.Errorf("Cannot getDVS: %+v", err)
 	}
@@ -120,7 +124,7 @@ func (p *dvs_port_group) getProperties(c *govmomi.Client) (*mo.DistributedVirtua
 	if err != nil {
 		return nil, err
 	}
-	dvspgobj, err := p.getVmomiDVPG(c, switchID.datacenter, switchID.name, p.name)
+	dvspgobj, err := p.getVmomiDVPG(c, switchID.datacenter, switchID.path, p.name)
 	if err != nil {
 		return nil, err
 	}

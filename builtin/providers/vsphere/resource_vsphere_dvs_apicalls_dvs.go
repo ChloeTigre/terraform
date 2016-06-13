@@ -2,7 +2,9 @@ package vsphere
 
 import (
 	"fmt"
+	"log"
 	"strings"
+	"time"
 
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
@@ -51,8 +53,7 @@ func (d *dvs) getDCAndFolders(c *govmomi.Client) (*object.Datacenter, *object.Da
 }
 
 func (d *dvs) addHost(c *govmomi.Client, host string, nicNames []string) error {
-	dvsPath := fmt.Sprintf("%s/%s", d.folder, d.name)
-	dvsItem, err := d.getDVS(c, dvsPath)
+	dvsItem, err := d.getDVS(c, d.getFullName())
 	dvsStruct := mo.DistributedVirtualSwitch{}
 	if err = dvsItem.Properties(
 		context.TODO(),
@@ -95,36 +96,45 @@ func (d *dvs) addHost(c *govmomi.Client, host string, nicNames []string) error {
 }
 
 func (d *dvs) createSwitch(c *govmomi.Client) error {
-	_, folders, err := d.getDCAndFolders(c)
+	/*_, folders, err := d.getDCAndFolders(c)
 	if err != nil {
 		return fmt.Errorf("Could not get datacenter and  folders: %+v", err)
 	}
-	folder := folders.NetworkFolder
+	*/
+	folder, err := changeFolder(c, d.datacenter, "network", d.folder)
+	if err != nil {
+		return fmt.Errorf("Cannot get to folder %v/%v: %+v", d.datacenter, d.folder, err)
+	}
 
 	// using Network Folder, create the DVSCreateSpec (pretty much a mapping of the config)
 	spec := d.makeDVSCreateSpec()
 	task, err := folder.CreateDVS(context.TODO(), spec)
 	if err != nil {
-		return fmt.Errorf("Could not create the DVS: %+v", err)
+		return fmt.Errorf("[CreateSwitch.CreateDVS] Could not create the DVS with spec\n\t%+v\nError: %T %+v\n", spec.ConfigSpec, err, err)
 	}
-	_, err = task.WaitForResult(context.TODO(), nil)
-	if err != nil {
-		return fmt.Errorf("Could not create the DVS: %+v", err)
+
+	log.Printf("Started creation of switch: %s\n", time.Now())
+	if err := waitForTaskEnd(task, "[CreateSwitch.WaitForResult] Could not create the DVS: %+v"); err != nil {
+		log.Printf("Failed creation of switch: %s\n", time.Now())
+		return fmt.Errorf("[CreateSwitch.WaitForResult] Could not create the DVS with spec\n\t%+v\n\tError: %+v\n\tFolder: %+v", spec.ConfigSpec, err, folder)
 	}
+	log.Printf("Success creation of switch: %s\n", time.Now())
 	return nil
 }
 
 // get a DVS from its name and populate the DVS with its infos
 func (d *dvs) getDVS(c *govmomi.Client, dvsPath string) (*object.DistributedVirtualSwitch, error) {
+	var res object.NetworkReference
 	datacenter, _, err := d.getDCAndFolders(c)
 	if err != nil {
-		return nil, fmt.Errorf("Could not get datacenter and  folders: %+v", err)
+		return nil, fmt.Errorf("Could not get datacenter and folders: %+v", err)
 	}
 	finder := find.NewFinder(c.Client, true)
 	finder.SetDatacenter(datacenter)
-	res, err := finder.Network(context.TODO(), dvsPath)
+
+	res, err = finder.Network(context.TODO(), dvsPath)
 	if err != nil {
-		return nil, fmt.Errorf("Cannot get DVS %s:( %+v", dvsPath, err)
+		return nil, fmt.Errorf("Cannot get DVS %s: %+v", dvsPath, err)
 	}
 	castedobj, casted := res.(*object.DistributedVirtualSwitch)
 	if !casted {
@@ -187,15 +197,27 @@ func (d *dvs) getDVSHostMembers(c *govmomi.Client) (out map[string]*dvs_map_host
 }
 
 func (d *dvs) getProperties(c *govmomi.Client) (out *mo.DistributedVirtualSwitch, err error) {
-
 	dvsMo := mo.DistributedVirtualSwitch{}
-	dvsobj, err := d.getDVS(c, d.name)
+	dvsobj, err := d.getDVS(c, d.getFullName())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error in getProperties: [%T]%+v", err, err)
 	}
 	return &dvsMo, dvsobj.Properties(
 		context.TODO(),
 		dvsobj.Reference(),
-		[]string{"capability", "config", "host", "networkResourcePool", "portgroup", "summary", "uuid"},
+		[]string{"capability", "config", "networkResourcePool", "portgroup", "summary", "uuid"},
 		&dvsMo)
+}
+
+func (d *dvs) Destroy(c *govmomi.Client) error {
+	dvsO, err := d.getDVS(c, d.getFullName())
+	if err != nil {
+		return fmt.Errorf("Cannot call Destroy - cannot get object: %+v", err)
+	}
+
+	task, err := dvsO.Destroy(context.TODO())
+	if err != nil {
+		return fmt.Errorf("Cannot call Destroy - underlying Destroy NOK: %+v", err)
+	}
+	return waitForTaskEnd(task, "Could not complete Destroy - Task failed: %+v")
 }

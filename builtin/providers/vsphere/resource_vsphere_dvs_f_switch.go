@@ -5,17 +5,16 @@ import "log"
 import "fmt"
 
 // name format for DVS: datacenter, name
-const dvs_name_format = "vSphere::DVS::%s---%s"
 
 type dvsID struct {
 	datacenter string
-	name       string
+	path       string
 }
 
 /* functions for DistributedVirtualSwitch */
 
 func (d *dvs) getID() string {
-	return fmt.Sprintf(dvs_name_format, d.datacenter, d.name)
+	return fmt.Sprintf(dvs_name_format, d.datacenter, d.getFullName())
 }
 
 func resourceVSphereDVSCreate(d *schema.ResourceData, meta interface{}) error {
@@ -55,7 +54,7 @@ func resourceVSphereDVSRead(d *schema.ResourceData, meta interface{}) error {
 		log.Panicf("There are errors in DVSRead. Cannot proceed.\n%+v", errs)
 	}
 	dvsObject := dvs{}
-	err = loadDVS(client, resourceID.datacenter, resourceID.name, &dvsObject)
+	err = loadDVS(client, resourceID.datacenter, resourceID.path, &dvsObject)
 	if err != nil {
 		errs = append(errs, fmt.Errorf("Cannot read DVS %+v: %+v", resourceID, err))
 	}
@@ -83,10 +82,14 @@ func resourceVSphereDVSUpdate(d *schema.ResourceData, meta interface{}) error {
 	log.Printf("[DEBUG] Client: %+v", client)
 	// detect the different changes in the object and perform needed updates
 
-	return nil
+	return fmt.Errorf("Not implemented yet")
 }
 
 func resourceVSphereDVSDelete(d *schema.ResourceData, meta interface{}) error {
+	var errs []error
+	var err error
+	var resourceID *dvsID
+	var dvsObject dvs
 	log.Printf("[DEBUG] Starting DVSDelete")
 	client, err := getGovmomiClient(meta)
 	if err != nil {
@@ -95,9 +98,29 @@ func resourceVSphereDVSDelete(d *schema.ResourceData, meta interface{}) error {
 	log.Printf("[DEBUG] Client: %+v", client)
 	// remove the object and its dependencies in vSphere
 	// use Destroy_Task
-
+	resourceID, err = parseDVSID(d.Id())
+	if err != nil {
+		errs = append(errs, fmt.Errorf("Cannot parse DVSID… %+v", err))
+		goto EndCondition
+	}
+	dvsObject = dvs{}
+	err = loadDVS(client, resourceID.datacenter, resourceID.path, &dvsObject)
+	if err != nil {
+		errs = append(errs, fmt.Errorf("Cannot loadDVS… %+v", err))
+		goto EndCondition
+	}
+	err = dvsObject.Destroy(client)
+	if err != nil {
+		errs = append(errs, err)
+		goto EndCondition
+	}
 	// then remove object from the datastore.
 	d.SetId("")
+
+EndCondition:
+	if len(errs) > 0 {
+		return fmt.Errorf("There are errors in DVSRead. Cannot proceed.\n%+v", errs)
+	}
 	return nil
 }
 

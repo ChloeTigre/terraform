@@ -8,7 +8,6 @@ import (
 )
 
 // name format for MapVMDVPG: datacenter, switch name, port name, vm name
-const mapvmdvpg_name_format = "MapVMDVPG:[%s] %s.%s-%s"
 
 type mapVMDVPGID struct {
 	datacenter    string

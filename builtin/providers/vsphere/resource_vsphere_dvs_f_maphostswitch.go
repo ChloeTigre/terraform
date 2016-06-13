@@ -4,8 +4,6 @@ import "github.com/hashicorp/terraform/helper/schema"
 import "fmt"
 
 // name format for MapHostDVS: datacenter, DVS name, Host name, nic name
-const maphostdvs_name_format = "MapHostDVS:[%s] %s---%s"
-
 /* functions for MapHostDVS */
 
 type mapHostDVSID struct {
@@ -19,7 +17,7 @@ func (d *dvs_map_host_dvs) getID() string {
 	if err != nil {
 		return "!!ERROR!!"
 	}
-	return fmt.Sprintf(maphostdvs_name_format, switchID.datacenter, switchID.name, d.hostName)
+	return fmt.Sprintf(maphostdvs_name_format, switchID.datacenter, switchID.path, d.hostName)
 }
 
 func resourceVSphereMapHostDVSCreate(d *schema.ResourceData, meta interface{}) error {
@@ -38,7 +36,7 @@ func resourceVSphereMapHostDVSCreate(d *schema.ResourceData, meta interface{}) e
 		return fmt.Errorf("Cannot parse switchID %s: %+v", sid, errs)
 	}
 	dvsObj := dvs{}
-	if err := loadDVS(client, dvsID.datacenter, dvsID.name, &dvsObj); err != nil {
+	if err := loadDVS(client, dvsID.datacenter, dvsID.path, &dvsObj); err != nil {
 		return fmt.Errorf("Cannot load DVS %+v: %+v", dvsID, errs)
 	}
 	// now that we have a DVS, we may add a Host to it.
@@ -46,7 +44,7 @@ func resourceVSphereMapHostDVSCreate(d *schema.ResourceData, meta interface{}) e
 		return fmt.Errorf("Cannot addHost: %+v", err)
 	}
 	// now set ID
-	d.SetId(fmt.Sprintf(maphostdvs_name_format, dvsID.datacenter, dvsID.name, hostName))
+	d.SetId(fmt.Sprintf(maphostdvs_name_format, dvsID.datacenter, dvsID.path, hostName))
 	return nil
 }
 
