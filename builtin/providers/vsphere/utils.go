@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
@@ -116,4 +117,10 @@ func changeFolder(c *govmomi.Client, datacenter, objtype, folderPath string) (*o
 		}
 	}
 	return folderObj, err
+}
+
+func dirname(path string) string {
+	s := strings.Split(path, "/")
+	sslice := s[0 : len(s)-1]
+	return strings.Join(sslice, "/")
 }

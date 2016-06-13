@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/vmware/govmomi"
 )
@@ -38,7 +39,7 @@ func buildTestDVS(variant string) *dvs {
 func buildTestDVPG(variant string, dvsInfo *dvs) *dvs_port_group {
 	dvpg := dvs_port_group{}
 	dvpg.autoExpand = testParameters["dvpgAutoExpand"].(bool)
-	dvpg.name = testParameters["portgroupName"].(string)
+	dvpg.name = fmt.Sprintf(testParameters["portgroupName"].(string), variant)
 	dvpg.numPorts = testParameters["portgroupPorts"].(int)
 	dvpg.switchId = dvsInfo.getID()
 	dvpg.description = testParameters["portgroupDescription"].(string)
@@ -102,6 +103,15 @@ func doCreateDVPortgroup(dvpg *dvs_port_group, t *testing.T) {
 		t.Logf("[ERROR] Cannot create portgroup: %+v\n", err)
 		t.Fail()
 	}
+	t.Log("Created DVPG. Now getting props")
+
+	props, err := dvpg.getProperties(client)
+	if err != nil {
+		t.Logf("Cannot retrieve DVPS properties, failing: [%T]%+v\nProperties obj: [%T]%+v\n", err, err, props, props)
+		t.Fail()
+	} else {
+		t.Logf("Properties: %+v", props)
+	}
 }
 
 func doDeleteDVPortgroup(dvpg *dvs_port_group, t *testing.T) {
@@ -120,6 +130,7 @@ func TestPortgroupCreationAndDestruction(t *testing.T) {
 	doCreateDVS(dvsO, t)
 	t.Logf("DVPG: %+v", dvpg)
 	doCreateDVPortgroup(dvpg, t)
+	time.Sleep(10 * time.Second)
 	doDeleteDVPortgroup(dvpg, t)
 	doDeleteDVS(dvsO, t)
 }

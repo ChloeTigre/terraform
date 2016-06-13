@@ -14,14 +14,14 @@ import (
 
 // portgroup methods
 
-func (p *dvs_port_group) getVmomiDVPG(c *govmomi.Client, datacenter, switchName, name string) (*object.DistributedVirtualPortgroup, error) {
+func (p *dvs_port_group) getVmomiDVPG(c *govmomi.Client, datacenter, switchPath, name string) (*object.DistributedVirtualPortgroup, error) {
 	datacenterO, _, err := getDCAndFolders(c, datacenter)
 	if err != nil {
 		return nil, fmt.Errorf("Could not get datacenter and folders: %+v", err)
 	}
 	finder := find.NewFinder(c.Client, true)
 	finder.SetDatacenter(datacenterO)
-	pgPath := fmt.Sprintf("%s/%s", switchName, name)
+	pgPath := fmt.Sprintf("%s/%s", dirname(switchPath), name)
 	res, err := finder.Network(context.TODO(), pgPath)
 	if err != nil {
 		return nil, fmt.Errorf("Cannot get DVPG %s: %+v", pgPath, err)
