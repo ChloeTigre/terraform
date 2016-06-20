@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/vim25/types"
 	"golang.org/x/net/context"
@@ -11,7 +12,7 @@ import (
 
 // dvs_map_vm_dvpg methods
 
-func (m *dvs_map_vm_dvs) loadMapVMDVPG(c *govmomi.Client, datacenter, switchName, portgroup, vmPath string) (out *dvs_map_vm_dvs, err error) {
+func (m *dvs_map_vm_dvpg) loadMapVMDVPG(c *govmomi.Client, datacenter, switchName, portgroup, vmPath string) (out *dvs_map_vm_dvpg, err error) {
 	var errs []error
 	vmObj, err := getVirtualMachine(c, datacenter, vmPath)
 	if err != nil {
@@ -21,6 +22,7 @@ func (m *dvs_map_vm_dvs) loadMapVMDVPG(c *govmomi.Client, datacenter, switchName
 	if err != nil {
 		errs = append(errs, err)
 	}
+
 	dvpgObj, err := loadDVPG(c, pgID.datacenter, pgID.switchName, pgID.name)
 	if err != nil {
 		errs = append(errs, err)
@@ -63,4 +65,75 @@ EndStatement:
 		return nil, fmt.Errorf("Errors in loadMapVMDVPG: %+v", errs)
 	}
 	return out, err
+}
+
+func (m *dvs_map_vm_dvpg) createMapVMDVPG(c *govmomi.Client) error {
+	var errs []error
+	portgroupID, err := parseDVPGID(m.portgroup)
+	if err != nil {
+		errs = append(errs, err)
+	}
+	// get VM and NIC
+	log.Printf("Boo:\n\n[%+v]\n[%+v]\n[%+v]\n\n\n", c, portgroupID, m)
+	vm, err := getVirtualMachine(c, portgroupID.datacenter, m.vm)
+	if err != nil {
+		errs = append(errs, err)
+		return err
+	}
+	veth, _, err := getVEthByName(c, vm, m.nicLabel)
+	if err != nil {
+		errs = append(errs, err)
+		return err
+	}
+	portgroup, err := loadDVPG(c, portgroupID.datacenter, portgroupID.switchName, portgroupID.name)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	// update backing informations of the VEth so it connects to the Portgroup
+
+	err = bindVEthAndPortgroup(c, vm, veth, portgroup)
+	if err != nil {
+		errs = append(errs, err)
+	}
+	// end
+	if len(errs) > 0 {
+		spew.Dump("Errors!", errs)
+		return fmt.Errorf("Errors in createMapVMDVPG: {\n%+v\n}\n", errs)
+	}
+	return nil
+}
+
+func (m *dvs_map_vm_dvpg) deleteMapVMDVPG(c *govmomi.Client) error {
+	var errs []error
+	portgroupID, err := parseDVPGID(m.portgroup)
+	if err != nil {
+		errs = append(errs, err)
+	}
+	// get VM and NIC
+	vm, err := getVirtualMachine(c, portgroupID.datacenter, m.vm)
+	if err != nil {
+		errs = append(errs, err)
+		return err
+	}
+	veth, _, err := getVEthByName(c, vm, m.nicLabel)
+	if err != nil {
+		errs = append(errs, err)
+	}
+	portgroup, err := loadDVPG(c, portgroupID.datacenter, portgroupID.switchName, portgroupID.name)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	// update backing informations of the VEth so it connects to the Portgroup
+	err = unbindVEthAndPortgroup(c, vm, veth, portgroup)
+	if err != nil {
+		errs = append(errs, err)
+	}
+	// end
+	if len(errs) > 0 {
+		return fmt.Errorf("Errors in deleteMapVMDVPG: %+v", errs)
+	}
+	return nil
+
 }

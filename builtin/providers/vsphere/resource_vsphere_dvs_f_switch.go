@@ -19,7 +19,7 @@ func (d *dvs) getID() string {
 
 func resourceVSphereDVSCreate(d *schema.ResourceData, meta interface{}) error {
 	// this creates a DVS
-	log.Printf("[DEBUG] Starting DVSCreate")
+
 	client, err := getGovmomiClient(meta)
 	if err != nil {
 		return err
@@ -38,13 +38,13 @@ func resourceVSphereDVSCreate(d *schema.ResourceData, meta interface{}) error {
 }
 
 func resourceVSphereDVSRead(d *schema.ResourceData, meta interface{}) error {
-	log.Printf("[DEBUG] Starting DVSRead")
+
 	var errs []error
 	client, err := getGovmomiClient(meta)
 	if err != nil {
 		errs = append(errs, err)
 	}
-	log.Printf("[DEBUG] Client: %+v", client)
+
 	// load the state from vSphere and provide the hydrated object.
 	resourceID, err := parseDVSID(d.Id())
 	if err != nil {
@@ -74,14 +74,14 @@ func resourceVSphereDVSRead(d *schema.ResourceData, meta interface{}) error {
 }
 
 func resourceVSphereDVSUpdate(d *schema.ResourceData, meta interface{}) error {
-	log.Printf("[DEBUG] Starting DVSUpdate")
-	client, err := getGovmomiClient(meta)
+
+	/* client, err := getGovmomiClient(meta)
 	if err != nil {
 		return err
 	}
-	log.Printf("[DEBUG] Client: %+v", client)
-	// detect the different changes in the object and perform needed updates
 
+	// detect the different changes in the object and perform needed updates
+	*/
 	return fmt.Errorf("Not implemented yet")
 }
 
@@ -90,12 +90,12 @@ func resourceVSphereDVSDelete(d *schema.ResourceData, meta interface{}) error {
 	var err error
 	var resourceID *dvsID
 	var dvsObject dvs
-	log.Printf("[DEBUG] Starting DVSDelete")
+
 	client, err := getGovmomiClient(meta)
 	if err != nil {
 		return err
 	}
-	log.Printf("[DEBUG] Client: %+v", client)
+
 	// remove the object and its dependencies in vSphere
 	// use Destroy_Task
 	resourceID, err = parseDVSID(d.Id())
@@ -207,5 +207,6 @@ func unparseDVS(d *schema.ResourceData, in *dvs) error {
 }
 
 func (d *dvs) getFullName() string {
+
 	return fmt.Sprintf("%s/%s", d.folder, d.name)
 }

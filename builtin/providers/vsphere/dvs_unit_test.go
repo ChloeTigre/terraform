@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/vmware/govmomi"
 )
@@ -44,6 +43,7 @@ func buildTestDVPG(variant string, dvsInfo *dvs) *dvs_port_group {
 	dvpg.switchId = dvsInfo.getID()
 	dvpg.description = testParameters["portgroupDescription"].(string)
 	dvpg.pgType = "earlyBinding"
+	dvpg.portNameFormat = "<dvsName>-<portIndex>"
 	return &dvpg
 }
 
@@ -69,7 +69,7 @@ func doCreateDVS(dvsO *dvs, t *testing.T) {
 
 		t.Fail()
 	} else {
-		t.Logf("Properties: %+v", props)
+		t.Log("Got properties. The DVS has been created")
 	}
 }
 
@@ -81,7 +81,7 @@ func doDeleteDVS(dvsO *dvs, t *testing.T) {
 }
 
 // Test DVS creation and destruction
-func TestDVSCreationAndDestruction(t *testing.T) {
+func aaTestDVSCreationAndDestruction(t *testing.T) {
 	// need:
 	// datacenter name, host name 1, host name 2, switch path
 	dvsO := buildTestDVS("test1")
@@ -110,7 +110,7 @@ func doCreateDVPortgroup(dvpg *dvs_port_group, t *testing.T) {
 		t.Logf("Cannot retrieve DVPS properties, failing: [%T]%+v\nProperties obj: [%T]%+v\n", err, err, props, props)
 		t.Fail()
 	} else {
-		t.Logf("Properties: %+v", props)
+		t.Log("Got properties. The object is well created.")
 	}
 }
 
@@ -119,28 +119,69 @@ func doDeleteDVPortgroup(dvpg *dvs_port_group, t *testing.T) {
 	if err := testDeleteDVPG(dvpg, client); err != nil {
 		t.Logf("[ERROR] Cannot delete portgroup: %+v\n", err)
 		t.Fail()
+	} else {
+		t.Log("Deleted DVPG ", dvpg)
 	}
 }
 
-func TestPortgroupCreationAndDestruction(t *testing.T) {
+func aaTestPortgroupCreationAndDestruction(t *testing.T) {
 	// need:
 	// datacenter name, switch path, portgroup name
 	dvsO := buildTestDVS("test2")
 	dvpg := buildTestDVPG("test2", dvsO)
 	doCreateDVS(dvsO, t)
-	t.Logf("DVPG: %+v", dvpg)
 	doCreateDVPortgroup(dvpg, t)
-	time.Sleep(10 * time.Second)
 	doDeleteDVPortgroup(dvpg, t)
 	doDeleteDVS(dvsO, t)
+}
+
+func buildTestMapVMDVPG(dvpg *dvs_port_group) *dvs_map_vm_dvpg {
+	vmpth := vmPath(testParameters["vmFolder"].(string), testParameters["vmPath"].(string))
+	o := dvs_map_vm_dvpg{}
+	o.vm = vmpth
+	o.nicLabel = testParameters["nicName"].(string)
+	o.portgroup = dvpg.getID()
+	return &o
+}
+
+func doCreateMapVMDVPG(mapvm *dvs_map_vm_dvpg, t *testing.T) {
+	t.Logf("Creating MapVMDVPG: %+v", mapvm)
+	if err := mapvm.createMapVMDVPG(client); err != nil {
+		t.Logf("Could not create MapVMDVPG:\n%+v", err)
+		t.Fail()
+	} else {
+		t.Log("Could create MapVMDVPG")
+	}
+}
+
+func doDeleteMapVMDVPG(mapvm *dvs_map_vm_dvpg, t *testing.T) {
+	t.Logf("Deleting MapVMDVPG: %+v", mapvm)
+	if err := mapvm.deleteMapVMDVPG(client); err != nil {
+		t.Logf("Could not delete MapVMDVPG:\n%+v", err)
+		t.Fail()
+	} else {
+		t.Log("Could create MapVMDVPG")
+	}
 }
 
 // Test VM-DVS binding creation and destruction
 func TestVMDVSCreationAndDestruction(t *testing.T) {
 	// need:
 	// datacenter name, switch path, portgroup name, VM path name
+	//dvsO := buildTestDVS("test3")
+	dvsO := dvs{}
+	dvsPath := "dvpg_cerberhost/n4a-ibm-cerberhost-dvs-1"
+	if err := loadDVS(client, testParameters["datacenter"].(string), dvsPath, &dvsO); err != nil {
+		t.FailNow()
+	}
+	dvpg := buildTestDVPG("test3", &dvsO)
+	mapvmdvpg := buildTestMapVMDVPG(dvpg)
 
-	t.FailNow()
+	//doCreateDVS(dvsO, t)
+	//doCreateDVPortgroup(dvpg, t)
+	doCreateMapVMDVPG(mapvmdvpg, t)
+	doDeleteMapVMDVPG(mapvmdvpg, t)
+	//doDeleteDVPortgroup(dvpg, t)
 }
 
 // Test read DVS
@@ -168,6 +209,8 @@ func init() {
 	datacenter := os.Getenv("VSPHERE_TEST_DC")
 	switchFolder := os.Getenv("VSPHERE_TEST_SWDIR")
 	vmFolder := os.Getenv("VSPHERE_TEST_VMDIR")
+	vmPath := os.Getenv("VSPHERE_TEST_VM")
+	nicName := os.Getenv("VSPHERE_TEST_NIC")
 	if datacenter == "" {
 		datacenter = "vm-test-1"
 	}
@@ -177,11 +220,18 @@ func init() {
 	if vmFolder == "" {
 		vmFolder = "/DEVTESTS"
 	}
+	if nicName == "" {
+		nicName = "Network Adapter 1"
+	}
+	if vmPath == "" {
+		vmPath = "TESTVM"
+	}
 	testParameters = make(map[string]interface{})
 	testParameters["datacenter"] = datacenter
 	testParameters["switchFolder"] = switchFolder
 	testParameters["vmFolder"] = vmFolder
-	testParameters["vmPath"] = "VMTEST1-%s"
+	testParameters["nicName"] = nicName
+	testParameters["vmPath"] = vmPath
 	testParameters["switchName"] = "DVSTEST-%s"
 	testParameters["portgroupName"] = "PORTGROUPTEST1-%s"
 	testParameters["switchDescription"] = "lorem test ipsum test"

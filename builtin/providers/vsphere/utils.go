@@ -6,9 +6,11 @@ import (
 	"os"
 	"strings"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
+	"github.com/vmware/govmomi/vim25/mo"
 	"golang.org/x/net/context"
 )
 
@@ -39,7 +41,7 @@ func parseDVSID(id string) (out *dvsID, err error) {
 	// _, err = fmt.Sscanf(id, dvs_name_format, &out.datacenter, &out.name)
 	r := re_dvs.FindStringSubmatch(id)
 	if r == nil {
-		return nil, fmt.Errorf("Cannot match id %s with regexp %s", id, re_dvs)
+		return nil, fmt.Errorf("Cannot match id [%s] with regexp [%s]", id, re_dvs)
 	}
 	out.datacenter = r[1]
 	out.path = r[2]
@@ -49,21 +51,41 @@ func parseDVSID(id string) (out *dvsID, err error) {
 // parse ID to components (DVPG)
 func parseDVPGID(id string) (out *dvPGID, err error) {
 	out = &dvPGID{}
-	_, err = fmt.Sscanf(id, dvpg_name_format, &out.datacenter, &out.switchName, &out.name)
+	r := re_dvpg.FindStringSubmatch(id)
+	if r == nil {
+		return nil, fmt.Errorf("Cannot match id [%s] with regexp [%s]", id, re_dvs)
+	}
+	out.datacenter = r[1]
+	out.switchName = r[2]
+	out.name = r[3]
 	return
 }
 
 // parse ID to components (MapHostDVS)
 func parseMapHostDVSID(id string) (out *mapHostDVSID, err error) {
 	out = &mapHostDVSID{}
-	_, err = fmt.Sscanf(id, maphostdvs_name_format, &out.datacenter, &out.switchName, &out.hostName)
+	r := re_maphostdvs.FindStringSubmatch(id)
+	if r == nil {
+		return nil, fmt.Errorf("Cannot match id [%s] with regexp [%s]", id, re_dvs)
+	}
+	out.datacenter = r[1]
+	out.switchName = r[2]
+	out.hostName = r[3]
 	return
 }
 
 // parse ID to components (MapHostDVS)
 func parseMapVMDVPGID(id string) (out *mapVMDVPGID, err error) {
 	out = &mapVMDVPGID{}
-	_, err = fmt.Sscanf(id, mapvmdvpg_name_format, &out.datacenter, &out.switchName, &out.portgroupName, &out.vmName)
+	r := re_mapvmdvpg.FindStringSubmatch(id)
+	if r == nil {
+		return nil, fmt.Errorf("Cannot match id [%s] with regexp [%s]", id, re_dvs)
+	}
+	out.datacenter = r[1]
+	out.switchName = r[2]
+	out.portgroupName = r[3]
+	out.vmName = r[4]
+	//_, err = fmt.Sscanf(id, mapvmdvpg_name_format, &out.datacenter, &out.switchName, &out.portgroupName, &out.vmName)
 	return
 }
 
@@ -71,7 +93,12 @@ func parseMapVMDVPGID(id string) (out *mapVMDVPGID, err error) {
 func waitForTaskEnd(task *object.Task, message string) error {
 	//time.Sleep(time.Second * 5)
 	if err := task.Wait(context.TODO()); err != nil {
-		return fmt.Errorf(message, err)
+		spew.Dump("Error in waitForTaskEnd", err)
+
+		taskmo := mo.Task{}
+		task.Properties(context.TODO(), task.Reference(), []string{"info"}, &taskmo)
+		spew.Dump("Task", taskmo)
+		return fmt.Errorf("[%T] → "+message, err, err)
 	}
 	return nil
 
@@ -122,5 +149,19 @@ func changeFolder(c *govmomi.Client, datacenter, objtype, folderPath string) (*o
 func dirname(path string) string {
 	s := strings.Split(path, "/")
 	sslice := s[0 : len(s)-1]
-	return strings.Join(sslice, "/")
+	out := strings.Join(sslice, "/")
+
+	return out
+}
+
+func dirAndFile(path string) (string, string) {
+	s := strings.Split(path, "/")
+	if len(s) == 1 {
+		return "", path
+	}
+	sslice := s[0 : len(s)-1]
+	folderPath := strings.Join(sslice, "/")
+	filePath := s[len(s)-1]
+	return folderPath, filePath
+
 }

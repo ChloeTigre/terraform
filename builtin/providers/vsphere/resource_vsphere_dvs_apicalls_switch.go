@@ -3,7 +3,6 @@ package vsphere
 import (
 	"fmt"
 	"log"
-	"strings"
 	"time"
 
 	"github.com/vmware/govmomi"
@@ -150,8 +149,7 @@ func (d *dvs) loadDVS(c *govmomi.Client, datacenter, dvsName string) error {
 	if err != nil {
 		return err
 	}
-	tokens := strings.Split(dvsName, "/")
-	folder := strings.Join(tokens[:len(tokens)-1], "/")
+	folder, switchName := dirAndFile(dvsName)
 	// retrieve the DVS properties
 
 	err = dvsobj.Properties(
@@ -169,13 +167,14 @@ func (d *dvs) loadDVS(c *govmomi.Client, datacenter, dvsName string) error {
 	d.contact.name = dvsci.Contact.Name
 	d.description = dvsci.Description
 	d.extensionKey = dvsci.ExtensionKey
-	d.name = dvsci.Name
+	d.name = switchName
 	d.numStandalonePorts = int(dvsci.NumStandalonePorts)
 	d.switchIPAddress = dvsci.SwitchIpAddress
 	d.switchUsagePolicy.autoPreinstallAllowed = *dvsci.Policy.AutoPreInstallAllowed
 	d.switchUsagePolicy.autoUpgradeAllowed = *dvsci.Policy.AutoUpgradeAllowed
 	d.switchUsagePolicy.partialUpgradeAllowed = *dvsci.Policy.PartialUpgradeAllowed
 	// return nil: no error
+
 	return nil
 }
 
@@ -205,7 +204,7 @@ func (d *dvs) getProperties(c *govmomi.Client) (out *mo.DistributedVirtualSwitch
 	return &dvsMo, dvsobj.Properties(
 		context.TODO(),
 		dvsobj.Reference(),
-		[]string{"capability", "config", "networkResourcePool", "portgroup", "summary", "uuid"},
+		[]string{"capability", "config", "networkResourcePool", "portgroup", "summary", "uuid", "name"},
 		&dvsMo)
 }
 

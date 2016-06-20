@@ -37,6 +37,15 @@ func (p *dvs_port_group) getVmomiDVPG(c *govmomi.Client, datacenter, switchPath,
 func (p *dvs_port_group) loadDVPG(client *govmomi.Client, datacenter, switchName, name string, out *dvs_port_group) error {
 	var pgmoObj mo.DistributedVirtualPortgroup
 	pgObj, err := p.getVmomiDVPG(client, datacenter, switchName, name)
+	if err != nil {
+		return fmt.Errorf("[ERROR] Could not get pgObj: %+v", err)
+	}
+	sfolderName, sname := dirAndFile(switchName)
+	dvsObj := dvs{
+		datacenter: datacenter,
+		folder:     sfolderName,
+		name:       sname,
+	}
 	// tokensSwitch := strings.Split(switchName, "/")
 	// folder := strings.Join(tokensSwitch[:len(tokensSwitch)-1], "/")
 	err = pgObj.Properties(
@@ -61,7 +70,7 @@ func (p *dvs_port_group) loadDVPG(client *govmomi.Client, datacenter, switchName
 	out.policy.allowVendorConfigOverride = policy.VendorConfigOverrideAllowed
 	out.policy.portConfigResetDisconnect = policy.PortConfigResetAtDisconnect
 	out.portNameFormat = pgmoObj.Config.PortNameFormat
-	out.switchId = switchName
+	out.switchId = dvsObj.getID()
 	return nil
 }
 
@@ -88,7 +97,9 @@ func (p *dvs_port_group) makeDVPGConfigSpec() types.DVPortgroupConfigSpec {
 
 func (p *dvs_port_group) createPortgroup(c *govmomi.Client) error {
 	createSpec := p.makeDVPGConfigSpec()
+
 	switchID, err := parseDVSID(p.switchId) // here we get the datacenter ID aswell
+
 	if err != nil {
 		return fmt.Errorf("Cannot parse switchID %s. %+v", p.switchId, err)
 	}
@@ -107,14 +118,14 @@ func (p *dvs_port_group) createPortgroup(c *govmomi.Client) error {
 
 	_, err = task.WaitForResult(context.TODO(), nil)
 	if err != nil {
+
 		return fmt.Errorf("Could not create the DVPG: %+v", err)
 	}
 	return nil
 }
 
 func (p *dvs_port_group) deletePortgroup(c *govmomi.Client) error {
-	log.Println("TODO: deletePortgroup → not implemented")
-	return nil
+	return p.Destroy(c)
 }
 
 func (p *dvs_port_group) getProperties(c *govmomi.Client) (*mo.DistributedVirtualPortgroup, error) {
@@ -124,6 +135,7 @@ func (p *dvs_port_group) getProperties(c *govmomi.Client) (*mo.DistributedVirtua
 	if err != nil {
 		return nil, err
 	}
+
 	dvspgobj, err := p.getVmomiDVPG(c, switchID.datacenter, switchID.path, p.name)
 	if err != nil {
 		return nil, err
@@ -133,4 +145,21 @@ func (p *dvs_port_group) getProperties(c *govmomi.Client) (*mo.DistributedVirtua
 		dvspgobj.Reference(),
 		[]string{"config", "key", "portKeys"},
 		&dvspgMo)
+}
+
+func (p *dvs_port_group) Destroy(c *govmomi.Client) error {
+	switchID, err := parseDVSID(p.switchId)
+	if err != nil {
+		return err
+	}
+	dvpg, err := p.getVmomiDVPG(c, switchID.datacenter, switchID.path, p.name)
+	if err != nil {
+		return fmt.Errorf("Cannot call Destroy - cannot get object: %+v", err)
+	}
+
+	task, err := dvpg.Destroy(context.TODO())
+	if err != nil {
+		return fmt.Errorf("Cannot call Destroy - underlying Destroy NOK: %+v", err)
+	}
+	return waitForTaskEnd(task, "Could not complete Destroy - Task failed: %+v")
 }

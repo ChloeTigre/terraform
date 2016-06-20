@@ -16,9 +16,14 @@ type dvPGID struct {
 }
 
 /* functions for DistributedVirtualPortgroup */
+func (p *dvs_port_group) getID() string {
+	switchID, _ := parseDVSID(p.switchId)
+
+	return fmt.Sprintf(dvpg_name_format, switchID.datacenter, switchID.path, p.name)
+}
 
 func resourceVSphereDVPGCreate(d *schema.ResourceData, meta interface{}) error {
-	log.Println("[DEBUG] Starting DVPGCreate")
+
 	client, err := getGovmomiClient(meta)
 	if err != nil {
 		return err
@@ -32,22 +37,18 @@ func resourceVSphereDVPGCreate(d *schema.ResourceData, meta interface{}) error {
 	if err != nil {
 		return fmt.Errorf("Cannot createPortgroup: %+v", err)
 	}
-	switchID, err := parseDVSID(item.switchId)
-	if err != nil {
-		return fmt.Errorf("Could not parse DVSID %s: %+v", item.switchId, err)
-	}
-	d.SetId(fmt.Sprint(dvpg_name_format, switchID.datacenter, switchID.path, item.name))
+	d.SetId(item.getID())
 	return nil
 }
 
 func resourceVSphereDVPGRead(d *schema.ResourceData, meta interface{}) error {
 	var errs []error
-	log.Println("[DEBUG] Starting DVPGRead")
+
 	client, err := getGovmomiClient(meta)
 	if err != nil {
 		errs = append(errs, err)
 	}
-	log.Printf("[DEBUG] Client: %+v", client)
+
 	// load the state from vSphere and provide the hydrated object.
 	resourceID, err := parseDVPGID(d.Id())
 	if err != nil {
@@ -69,7 +70,8 @@ func resourceVSphereDVPGRead(d *schema.ResourceData, meta interface{}) error {
 }
 
 func resourceVSphereDVPGUpdate(d *schema.ResourceData, meta interface{}) error {
-	return nil
+	err := fmt.Errorf("Not implemented")
+	return err
 	/*
 		// now populate the object
 		if err:=unparseDVPG(d, &dvspgObject); err != nil {
@@ -81,7 +83,6 @@ func resourceVSphereDVPGUpdate(d *schema.ResourceData, meta interface{}) error {
 
 func resourceVSphereDVPGDelete(d *schema.ResourceData, meta interface{}) error {
 	//var errs []error
-	log.Println("[DEBUG] Starting DVPGDelete")
 	/*client, err := getGovmomiClient(meta)
 	if err != nil {
 		errs = append(errs, err)
@@ -89,7 +90,41 @@ func resourceVSphereDVPGDelete(d *schema.ResourceData, meta interface{}) error {
 	*/
 	// use Destroy_Task
 	//d.SetId("")
-	return fmt.Errorf("DVPG::Delete → Not implemented")
+	var errs []error
+	var err error
+	var resourceID *dvPGID
+	var dvpg *dvs_port_group
+
+	client, err := getGovmomiClient(meta)
+	if err != nil {
+		return err
+	}
+	// remove the object and its dependencies in vSphere
+	// use Destroy_Task
+	resourceID, err = parseDVPGID(d.Id())
+
+	if err != nil {
+		errs = append(errs, fmt.Errorf("Cannot parse DVPGID… %+v", err))
+		goto EndCondition
+	}
+	dvpg, err = loadDVPG(client, resourceID.datacenter, resourceID.switchName, resourceID.name)
+	if err != nil {
+		errs = append(errs, fmt.Errorf("Cannot loadDVPG… %+v", err))
+		goto EndCondition
+	}
+	err = dvpg.Destroy(client)
+	if err != nil {
+		errs = append(errs, err)
+		goto EndCondition
+	}
+	// then remove object from the datastore.
+	d.SetId("")
+EndCondition:
+	if len(errs) > 0 {
+		return fmt.Errorf("There are errors in DVSRead. Cannot proceed.\n%+v", errs)
+	}
+
+	return nil
 }
 
 // parse a DVPG ResourceData to a dvs_port_group struct

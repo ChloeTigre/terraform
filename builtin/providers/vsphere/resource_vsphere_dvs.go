@@ -46,7 +46,7 @@ type dvs_port_group struct {
 	}
 }
 
-type dvs_map_vm_dvs struct {
+type dvs_map_vm_dvpg struct {
 	vm        string
 	nicLabel  string
 	portgroup string
@@ -233,7 +233,7 @@ func parseMapHostDVS(d *schema.ResourceData) (*dvs_map_host_dvs, error) {
 	return &o, nil
 }
 
-/* Functions for MapVMDVS */
+/* Functions for MapVMDVPG */
 
 func resourceVSphereMapVMDVPGSchema() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
@@ -255,9 +255,9 @@ func resourceVSphereMapVMDVPGSchema() map[string]*schema.Schema {
 	}
 }
 
-/* parse a MapVMDVS to its struct */
-func parseMapVMDVS(d *schema.ResourceData) (*dvs_map_vm_dvs, error) {
-	o := dvs_map_vm_dvs{}
+/* parse a MapVMDVPG to its struct */
+func parseMapVMDVPG(d *schema.ResourceData) (*dvs_map_vm_dvpg, error) {
+	o := dvs_map_vm_dvpg{}
 	if v, ok := d.GetOk("vm"); ok {
 		o.vm = v.(string)
 	}
