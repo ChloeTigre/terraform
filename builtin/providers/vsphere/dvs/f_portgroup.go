@@ -145,6 +145,9 @@ func parseDVPG(d *schema.ResourceData, out *dvs_port_group) error {
 	if v, ok := d.GetOk("num_ports"); ok {
 		o.numPorts = v.(int)
 	}
+	if v, ok := d.GetOk("default_vlan"); ok {
+		o.defaultVLAN = v.(int)
+	}
 	if v, ok := d.GetOk("port_name_format"); ok {
 		o.portNameFormat = v.(string)
 	}
@@ -172,6 +175,7 @@ func unparseDVPG(d *schema.ResourceData, in *dvs_port_group) error {
 		"name":             in.name,
 		"switch_id":        in.switchId,
 		"description":      in.description,
+		"default_vlan":     in.defaultVLAN,
 		"auto_expand":      in.autoExpand,
 		"num_ports":        in.numPorts,
 		"port_name_format": in.portNameFormat,

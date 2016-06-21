@@ -85,14 +85,20 @@ func (p *dvs_port_group) makeDVPGConfigSpec() types.DVPortgroupConfigSpec {
 		TrafficFilterOverrideAllowed:       &p.policy.allowTrafficFilterOverride,
 		VendorConfigOverrideAllowed:        p.policy.allowVendorConfigOverride,
 	}
+	dpc := types.VMwareDVSPortSetting{
+		Vlan: &(types.VmwareDistributedVirtualSwitchVlanIdSpec{
+			VlanId: int32(p.defaultVLAN),
+		}),
+	}
 	return types.DVPortgroupConfigSpec{
-		AutoExpand:     &p.autoExpand,
-		Description:    p.description,
-		Name:           p.name,
-		NumPorts:       int32(p.numPorts),
-		PortNameFormat: p.portNameFormat,
-		Type:           "earlyBinding",
-		Policy:         &a,
+		AutoExpand:        &p.autoExpand,
+		Description:       p.description,
+		Name:              p.name,
+		NumPorts:          int32(p.numPorts),
+		PortNameFormat:    p.portNameFormat,
+		Type:              "earlyBinding",
+		Policy:            &a,
+		DefaultPortConfig: &dpc,
 	}
 }
 

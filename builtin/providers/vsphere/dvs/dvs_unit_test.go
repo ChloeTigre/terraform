@@ -44,6 +44,7 @@ func buildTestDVPG(variant string, dvsInfo *dvs) *dvs_port_group {
 	dvpg.description = testParameters["portgroupDescription"].(string)
 	dvpg.pgType = "earlyBinding"
 	dvpg.portNameFormat = "<dvsName>-<portIndex>"
+	dvpg.defaultVLAN = 1337
 	return &dvpg
 }
 
@@ -124,15 +125,18 @@ func doDeleteDVPortgroup(dvpg *dvs_port_group, t *testing.T) {
 	}
 }
 
-func aaTestPortgroupCreationAndDestruction(t *testing.T) {
+func TestPortgroupCreationAndDestruction(t *testing.T) {
 	// need:
 	// datacenter name, switch path, portgroup name
-	dvsO := buildTestDVS("test2")
-	dvpg := buildTestDVPG("test2", dvsO)
-	doCreateDVS(dvsO, t)
+	dvsPath := "dvpg_cerberhost/n4a-ibm-cerberhost-dvs-1"
+	dvsO := dvs{}
+	if err := loadDVS(client, testParameters["datacenter"].(string), dvsPath, &dvsO); err != nil {
+		t.Logf("Could not load DVS with client %+v %+v %+v %+v: %+v\n", client, testParameters["datacenter"], dvsPath, dvsO, err)
+		t.FailNow()
+	}
+	dvpg := buildTestDVPG("test2", &dvsO)
 	doCreateDVPortgroup(dvpg, t)
-	doDeleteDVPortgroup(dvpg, t)
-	doDeleteDVS(dvsO, t)
+	//doDeleteDVPortgroup(dvpg, t)
 }
 
 func buildTestMapVMDVPG(dvpg *dvs_port_group) *dvs_map_vm_dvpg {
@@ -165,23 +169,24 @@ func doDeleteMapVMDVPG(mapvm *dvs_map_vm_dvpg, t *testing.T) {
 }
 
 // Test VM-DVS binding creation and destruction
-func TestVMDVSCreationAndDestruction(t *testing.T) {
+func aaTestVMDVSCreationAndDestruction(t *testing.T) {
 	// need:
 	// datacenter name, switch path, portgroup name, VM path name
 	//dvsO := buildTestDVS("test3")
 	dvsO := dvs{}
 	dvsPath := "dvpg_cerberhost/n4a-ibm-cerberhost-dvs-1"
 	if err := loadDVS(client, testParameters["datacenter"].(string), dvsPath, &dvsO); err != nil {
+		t.Logf("Could not load DVS with client %+v %+v %+v %+v: %+v\n", client, testParameters["datacenter"], dvsPath, dvsO, err)
 		t.FailNow()
 	}
 	dvpg := buildTestDVPG("test3", &dvsO)
 	mapvmdvpg := buildTestMapVMDVPG(dvpg)
 
 	//doCreateDVS(dvsO, t)
-	//doCreateDVPortgroup(dvpg, t)
+	doCreateDVPortgroup(dvpg, t)
 	doCreateMapVMDVPG(mapvmdvpg, t)
 	doDeleteMapVMDVPG(mapvmdvpg, t)
-	//doDeleteDVPortgroup(dvpg, t)
+	doDeleteDVPortgroup(dvpg, t)
 }
 
 // Test read DVS

@@ -2,56 +2,6 @@ package dvs
 
 import "github.com/hashicorp/terraform/helper/schema"
 
-type dvs struct {
-	name         string
-	folder       string
-	datacenter   string
-	extensionKey string
-	description  string
-	contact      struct {
-		name  string
-		infos string
-	}
-	switchUsagePolicy struct {
-		autoPreinstallAllowed bool
-		autoUpgradeAllowed    bool
-		partialUpgradeAllowed bool
-	}
-	switchIPAddress    string
-	numStandalonePorts int
-}
-
-type dvs_map_host_dvs struct {
-	hostName   string
-	switchName string
-	nicName    []string
-}
-
-type dvs_port_group struct {
-	name           string
-	switchId       string
-	pgType         string
-	description    string
-	autoExpand     bool
-	numPorts       int
-	portNameFormat string
-	policy         struct {
-		allowBlockOverride         bool
-		allowLivePortMoving        bool
-		allowNetworkRPOverride     bool
-		portConfigResetDisconnect  bool
-		allowShapingOverride       bool
-		allowTrafficFilterOverride bool
-		allowVendorConfigOverride  bool
-	}
-}
-
-type dvs_map_vm_dvpg struct {
-	vm        string
-	nicLabel  string
-	portgroup string
-}
-
 func resourceVSphereDVSSchema() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		"name": &schema.Schema{
@@ -126,6 +76,10 @@ func resourceVSphereDVPGSchema() map[string]*schema.Schema {
 			Type:     schema.TypeString,
 			Required: true,
 			ForceNew: true,
+		},
+		"default_vlan": &schema.Schema{
+			Type:     schema.TypeInt,
+			Optional: true,
 		},
 		"datacenter": &schema.Schema{
 			Type:     schema.TypeString,
@@ -218,21 +172,6 @@ func resourceVSphereMapHostDVSSchema() map[string]*schema.Schema {
 	}
 }
 
-/* parse a MapHostDVS to its struct */
-func parseMapHostDVS(d *schema.ResourceData) (*dvs_map_host_dvs, error) {
-	o := dvs_map_host_dvs{}
-	if v, ok := d.GetOk("host"); ok {
-		o.hostName = v.(string)
-	}
-	if v, ok := d.GetOk("switch"); ok {
-		o.switchName = v.(string)
-	}
-	if v, ok := d.GetOk("nic_names"); ok {
-		o.nicName = v.([]string)
-	}
-	return &o, nil
-}
-
 /* Functions for MapVMDVPG */
 
 func resourceVSphereMapVMDVPGSchema() map[string]*schema.Schema {
@@ -253,19 +192,4 @@ func resourceVSphereMapVMDVPGSchema() map[string]*schema.Schema {
 			ForceNew: true,
 		},
 	}
-}
-
-/* parse a MapVMDVPG to its struct */
-func parseMapVMDVPG(d *schema.ResourceData) (*dvs_map_vm_dvpg, error) {
-	o := dvs_map_vm_dvpg{}
-	if v, ok := d.GetOk("vm"); ok {
-		o.vm = v.(string)
-	}
-	if v, ok := d.GetOk("nic_label"); ok {
-		o.nicLabel = v.(string)
-	}
-	if v, ok := d.GetOk("portgroup"); ok {
-		o.portgroup = v.(string)
-	}
-	return &o, nil
 }

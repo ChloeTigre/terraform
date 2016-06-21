@@ -103,6 +103,21 @@ func resourceVSphereMapHostDVSDelete(d *schema.ResourceData, meta interface{}) e
 	return nil
 }
 
+/* parse a MapHostDVS to its struct */
+func parseMapHostDVS(d *schema.ResourceData) (*dvs_map_host_dvs, error) {
+	o := dvs_map_host_dvs{}
+	if v, ok := d.GetOk("host"); ok {
+		o.hostName = v.(string)
+	}
+	if v, ok := d.GetOk("switch"); ok {
+		o.switchName = v.(string)
+	}
+	if v, ok := d.GetOk("nic_names"); ok {
+		o.nicName = v.([]string)
+	}
+	return &o, nil
+}
+
 func unparseMapHostDVS(d *schema.ResourceData, in *dvs_map_host_dvs) error {
 	var errs []error
 	toSet := map[string]interface{}{

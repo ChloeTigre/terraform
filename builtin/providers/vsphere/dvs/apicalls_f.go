@@ -177,12 +177,9 @@ func buildVEthDeviceChange(c *govmomi.Client, veth *types.VirtualEthernetCard, p
 		// PortKey:    "372",
 		SwitchUuid: dvsProps.Uuid,
 	}
-	log.Printf("\n\n[DEBUG] cbk.Port: %+v\nswitchName: %s\nswitchUuid: %s; \nproperties: %+v\n\n", cbk, dvsProps.Name, dvsProps.Uuid, properties)
-	veth2 := types.VirtualEthernetCard{}
-	veth2.Key = veth.Key
-	veth2.Backing = &cbk
 	devChange.Operation = optype // `should be add, remove or edit`
-	devChange.Device = &veth2
+	devChange.Device = veth
+	veth.Backing = &cbk
 	return &devChange, nil
 }
 
@@ -199,7 +196,6 @@ func bindVEthAndPortgroup(c *govmomi.Client, vm *object.VirtualMachine, veth *ty
 	conf.DeviceChange = []types.BaseVirtualDeviceConfigSpec{devspec}
 
 	log.Printf("\n\n\nHere comes the debug\n")
-	spew.Dump("conf for reconfigure", conf)
 	spew.Dump("VM to be reconfigured", vm)
 	task, err := vm.Reconfigure(context.TODO(), conf)
 	if err != nil {

@@ -72,7 +72,7 @@ func resourceVSphereMapVMDVPGRead(d *schema.ResourceData, meta interface{}) erro
 		return fmt.Errorf("Errors in MapVMDVPGRead: %+v", errs)
 	}
 	// now just populate the ResourceData
-	return unparseMapHostDVPG(d, mapdvspgObject)
+	return unparseMapVMDVPG(d, mapdvspgObject)
 }
 
 func resourceVSphereMapVMDVPGUpdate(d *schema.ResourceData, meta interface{}) error {
@@ -117,8 +117,23 @@ func (d *dvs_map_vm_dvpg) getID() string {
 		portgroupID.switchName, portgroupID.name, d.vm)
 }
 
+/* parse a MapVMDVPG to its struct */
+func parseMapVMDVPG(d *schema.ResourceData) (*dvs_map_vm_dvpg, error) {
+	o := dvs_map_vm_dvpg{}
+	if v, ok := d.GetOk("vm"); ok {
+		o.vm = v.(string)
+	}
+	if v, ok := d.GetOk("nic_label"); ok {
+		o.nicLabel = v.(string)
+	}
+	if v, ok := d.GetOk("portgroup"); ok {
+		o.portgroup = v.(string)
+	}
+	return &o, nil
+}
+
 // take a dvs_map_vm_dvpg and put its contents into the ResourceData.
-func unparseMapHostDVPG(d *schema.ResourceData, in *dvs_map_vm_dvpg) error {
+func unparseMapVMDVPG(d *schema.ResourceData, in *dvs_map_vm_dvpg) error {
 	var errs []error
 	fieldsMap := map[string]interface{}{
 		"nic_label": in.nicLabel,

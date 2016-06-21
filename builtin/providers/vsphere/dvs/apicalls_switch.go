@@ -54,7 +54,7 @@ func (d *dvs) getDCAndFolders(c *govmomi.Client) (*object.Datacenter, *object.Da
 
 func (d *dvs) addHost(c *govmomi.Client, host string, nicNames []string) error {
 	dvsItem, err := d.getDVS(c, d.getFullName())
-	dvsStruct := mo.DistributedVirtualSwitch{}
+	dvsStruct := mo.VmwareDistributedVirtualSwitch{}
 	if err = dvsItem.Properties(
 		context.TODO(),
 		dvsItem.Reference(),
@@ -123,7 +123,7 @@ func (d *dvs) createSwitch(c *govmomi.Client) error {
 }
 
 // get a DVS from its name and populate the DVS with its infos
-func (d *dvs) getDVS(c *govmomi.Client, dvsPath string) (*object.DistributedVirtualSwitch, error) {
+func (d *dvs) getDVS(c *govmomi.Client, dvsPath string) (*object.VmwareDistributedVirtualSwitch, error) {
 	var res object.NetworkReference
 	datacenter, _, err := d.getDCAndFolders(c)
 	if err != nil {
@@ -140,12 +140,12 @@ func (d *dvs) getDVS(c *govmomi.Client, dvsPath string) (*object.DistributedVirt
 	if !casted {
 		return nil, fmt.Errorf("Oops! Object %s is not a DVS but a %T", res, res)
 	}
-	return castedobj, nil
+	return &(object.VmwareDistributedVirtualSwitch{*castedobj}), nil
 }
 
 // load a DVS and populate the struct with it
 func (d *dvs) loadDVS(c *govmomi.Client, datacenter, dvsName string) error {
-	var dvsMo mo.DistributedVirtualSwitch
+	var dvsMo mo.VmwareDistributedVirtualSwitch
 	dvsobj, err := d.getDVS(c, dvsName)
 	if err != nil {
 		return err
@@ -196,8 +196,8 @@ func (d *dvs) getDVSHostMembers(c *govmomi.Client) (out map[string]*dvs_map_host
 	return
 }
 
-func (d *dvs) getProperties(c *govmomi.Client) (out *mo.DistributedVirtualSwitch, err error) {
-	dvsMo := mo.DistributedVirtualSwitch{}
+func (d *dvs) getProperties(c *govmomi.Client) (out *mo.VmwareDistributedVirtualSwitch, err error) {
+	dvsMo := mo.VmwareDistributedVirtualSwitch{}
 	dvsobj, err := d.getDVS(c, d.getFullName())
 	if err != nil {
 		return nil, fmt.Errorf("Error in getProperties: [%T]%+v", err, err)
