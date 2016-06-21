@@ -1,8 +1,9 @@
-package vsphere
+package dvs
 
 import "github.com/hashicorp/terraform/helper/schema"
 
-func resourceVSphereDVS() *schema.Resource {
+// ResourceVSphereDVS exposes the DVS resource
+func ResourceVSphereDVS() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceVSphereDVSCreate,
 		Read:   resourceVSphereDVSRead,
@@ -12,7 +13,8 @@ func resourceVSphereDVS() *schema.Resource {
 	}
 }
 
-func resourceVSphereDVPG() *schema.Resource {
+// ResourceVSphereDVPG exposes the DVPG resource
+func ResourceVSphereDVPG() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceVSphereDVPGCreate,
 		Read:   resourceVSphereDVPGRead,
@@ -22,7 +24,8 @@ func resourceVSphereDVPG() *schema.Resource {
 	}
 }
 
-func resourceVSphereMapHostDVS() *schema.Resource {
+// ResourceVSphereMapHostDVS exposes the MapHostDVS resource (untested)
+func ResourceVSphereMapHostDVS() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceVSphereMapHostDVSCreate,
 		Read:   resourceVSphereMapHostDVSRead,
@@ -31,7 +34,8 @@ func resourceVSphereMapHostDVS() *schema.Resource {
 	}
 }
 
-func resourceVSphereMapVMDVPG() *schema.Resource {
+// ResourceVSphereMapVMDVPG exposes the MapVMDVPG resource
+func ResourceVSphereMapVMDVPG() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceVSphereMapVMDVPGCreate,
 		Read:   resourceVSphereMapVMDVPGRead,

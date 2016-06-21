@@ -1,5 +1,5 @@
 /* test our govmomi wrappings to ensure they work properly */
-package vsphere
+package dvs
 
 import (
 	"fmt"

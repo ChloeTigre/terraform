@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/hashicorp/terraform/builtin/providers/vsphere/helpers"
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
@@ -493,7 +494,7 @@ func resourceVSphereVirtualMachineUpdate(d *schema.ResourceData, meta interface{
 	}
 
 	client := meta.(*govmomi.Client)
-	dc, err := getDatacenter(client, d.Get("datacenter").(string))
+	dc, err := helpers.GetDatacenter(client, d.Get("datacenter").(string))
 	if err != nil {
 		return err
 	}
@@ -897,7 +898,7 @@ func resourceVSphereVirtualMachineCreate(d *schema.ResourceData, meta interface{
 func resourceVSphereVirtualMachineRead(d *schema.ResourceData, meta interface{}) error {
 	log.Printf("[DEBUG] virtual machine resource data: %#v", d)
 	client := meta.(*govmomi.Client)
-	dc, err := getDatacenter(client, d.Get("datacenter").(string))
+	dc, err := helpers.GetDatacenter(client, d.Get("datacenter").(string))
 	if err != nil {
 		return err
 	}
@@ -1101,7 +1102,7 @@ func resourceVSphereVirtualMachineRead(d *schema.ResourceData, meta interface{})
 
 func resourceVSphereVirtualMachineDelete(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*govmomi.Client)
-	dc, err := getDatacenter(client, d.Get("datacenter").(string))
+	dc, err := helpers.GetDatacenter(client, d.Get("datacenter").(string))
 	if err != nil {
 		return err
 	}
@@ -1564,7 +1565,7 @@ func createCdroms(vm *object.VirtualMachine, cdroms []cdrom) error {
 }
 
 func (vm *virtualMachine) setupVirtualMachine(c *govmomi.Client) error {
-	dc, err := getDatacenter(c, vm.datacenter)
+	dc, err := helpers.GetDatacenter(c, vm.datacenter)
 
 	if err != nil {
 		return err

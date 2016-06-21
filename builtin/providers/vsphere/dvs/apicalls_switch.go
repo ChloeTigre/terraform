@@ -1,10 +1,11 @@
-package vsphere
+package dvs
 
 import (
 	"fmt"
 	"log"
 	"time"
 
+	"github.com/hashicorp/terraform/builtin/providers/vsphere/helpers"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
@@ -38,7 +39,7 @@ func (d *dvs) makeDVSCreateSpec() types.DVSCreateSpec {
 }
 
 func (d *dvs) getDCAndFolders(c *govmomi.Client) (*object.Datacenter, *object.DatacenterFolders, error) {
-	datacenter, err := getDatacenter(c, d.datacenter)
+	datacenter, err := helpers.GetDatacenter(c, d.datacenter)
 	if err != nil {
 		return nil, nil, fmt.Errorf("Cannot get datacenter from %+v [%+v]", d, err)
 	}

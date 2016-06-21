@@ -1,4 +1,4 @@
-package vsphere
+package dvs
 
 import (
 	"fmt"
@@ -8,7 +8,6 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/vmware/govmomi"
-	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/vim25/mo"
 	"golang.org/x/net/context"
@@ -22,17 +21,6 @@ func getGovmomiClient(meta interface{}) (*govmomi.Client, error) {
 		return nil, fmt.Errorf("%+v is not castable as govmomi.Client", meta)
 	}
 	return client, nil
-}
-
-// getDatacenter gets datacenter object
-func getDatacenter(c *govmomi.Client, dc string) (*object.Datacenter, error) {
-	finder := find.NewFinder(c.Client, true)
-	if dc != "" {
-		d, err := finder.Datacenter(context.TODO(), dc)
-		return d, err
-	}
-	d, err := finder.DefaultDatacenter(context.TODO())
-	return d, err
 }
 
 // parse ID to components (DVS)
@@ -164,4 +152,12 @@ func dirAndFile(path string) (string, string) {
 	filePath := s[len(s)-1]
 	return folderPath, filePath
 
+}
+
+func vmPath(folder string, name string) string {
+	var path string
+	if len(folder) > 0 {
+		path += folder + "/"
+	}
+	return path + name
 }

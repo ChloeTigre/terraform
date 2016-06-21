@@ -3,6 +3,7 @@ package vsphere
 import (
 	"fmt"
 
+	"github.com/hashicorp/terraform/builtin/providers/vsphere/dvs"
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/hashicorp/terraform/terraform"
 )
@@ -68,10 +69,10 @@ func Provider() terraform.ResourceProvider {
 			"vsphere_folder":          resourceVSphereFolder(),
 			"vsphere_virtual_disk":    resourceVSphereVirtualDisk(),
 			"vsphere_virtual_machine": resourceVSphereVirtualMachine(),
-			"vsphere_dvs":             resourceVSphereDVS(),
-			"vsphere_dvs_port_group":  resourceVSphereDVPG(),
-			"vsphere_dvs_vm_port":     resourceVSphereMapVMDVPG(),
-			"vsphere_dvs_host_map":    resourceVSphereMapHostDVS(),
+			"vsphere_dvs":             dvs.ResourceVSphereDVS(),
+			"vsphere_dvs_port_group":  dvs.ResourceVSphereDVPG(),
+			"vsphere_dvs_vm_port":     dvs.ResourceVSphereMapVMDVPG(),
+			"vsphere_dvs_host_map":    dvs.ResourceVSphereMapHostDVS(),
 		},
 
 		ConfigureFunc: providerConfigure,

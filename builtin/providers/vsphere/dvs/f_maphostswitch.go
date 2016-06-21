@@ -1,4 +1,4 @@
-package vsphere
+package dvs
 
 import "github.com/hashicorp/terraform/helper/schema"
 import "fmt"
