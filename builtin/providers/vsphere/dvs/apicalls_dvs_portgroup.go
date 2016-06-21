@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/hashicorp/terraform/builtin/providers/vsphere/helpers"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
@@ -161,5 +162,5 @@ func (p *dvs_port_group) Destroy(c *govmomi.Client) error {
 	if err != nil {
 		return fmt.Errorf("Cannot call Destroy - underlying Destroy NOK: %+v", err)
 	}
-	return waitForTaskEnd(task, "Could not complete Destroy - Task failed: %+v")
+	return helpers.WaitForTaskEnd(task, "Could not complete Destroy - Task failed: %+v")
 }

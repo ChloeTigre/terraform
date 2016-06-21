@@ -92,7 +92,7 @@ func (d *dvs) addHost(c *govmomi.Client, host string, nicNames []string) error {
 	if err != nil {
 		return fmt.Errorf("Could not reconfigure the DVS: %+v", err)
 	}
-	return waitForTaskEnd(task, "Could not reconfigure the DVS: %+v")
+	return helpers.WaitForTaskEnd(task, "Could not reconfigure the DVS: %+v")
 }
 
 func (d *dvs) createSwitch(c *govmomi.Client) error {
@@ -114,7 +114,7 @@ func (d *dvs) createSwitch(c *govmomi.Client) error {
 	}
 
 	log.Printf("Started creation of switch: %s\n", time.Now())
-	if err := waitForTaskEnd(task, "[CreateSwitch.WaitForResult] Could not create the DVS: %+v"); err != nil {
+	if err := helpers.WaitForTaskEnd(task, "[CreateSwitch.WaitForResult] Could not create the DVS: %+v"); err != nil {
 		log.Printf("Failed creation of switch: %s\n", time.Now())
 		return fmt.Errorf("[CreateSwitch.WaitForResult] Could not create the DVS with spec\n\t%+v\n\tError: %+v\n\tFolder: %+v", spec.ConfigSpec, err, folder)
 	}
@@ -219,5 +219,5 @@ func (d *dvs) Destroy(c *govmomi.Client) error {
 	if err != nil {
 		return fmt.Errorf("Cannot call Destroy - underlying Destroy NOK: %+v", err)
 	}
-	return waitForTaskEnd(task, "Could not complete Destroy - Task failed: %+v")
+	return helpers.WaitForTaskEnd(task, "Could not complete Destroy - Task failed: %+v")
 }

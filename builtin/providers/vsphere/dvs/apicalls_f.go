@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/davecgh/go-spew/spew" // debug dependency
+	"github.com/hashicorp/terraform/builtin/providers/vsphere/helpers"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
@@ -205,7 +206,7 @@ func bindVEthAndPortgroup(c *govmomi.Client, vm *object.VirtualMachine, veth *ty
 		spew.Dump("Error\n\n", err, "\n\n")
 		return err
 	}
-	return waitForTaskEnd(task, "Cannot complete vm.Reconfigure: %+v")
+	return helpers.WaitForTaskEnd(task, "Cannot complete vm.Reconfigure: %+v")
 }
 
 func unbindVEthAndPortgroup(c *govmomi.Client, vm *object.VirtualMachine, veth *types.VirtualEthernetCard, portgroup *dvs_port_group) error {
@@ -223,7 +224,7 @@ func unbindVEthAndPortgroup(c *govmomi.Client, vm *object.VirtualMachine, veth *
 	if err != nil {
 		return err
 	}
-	return waitForTaskEnd(task, "Cannot complete vm.Reconfigure: %+v")
+	return helpers.WaitForTaskEnd(task, "Cannot complete vm.Reconfigure: %+v")
 }
 
 func vmDebug(c *govmomi.Client, vm *object.VirtualMachine) {

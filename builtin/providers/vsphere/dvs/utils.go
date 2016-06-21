@@ -6,10 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/object"
-	"github.com/vmware/govmomi/vim25/mo"
 	"golang.org/x/net/context"
 )
 
@@ -75,21 +73,6 @@ func parseMapVMDVPGID(id string) (out *mapVMDVPGID, err error) {
 	out.vmName = r[4]
 	//_, err = fmt.Sscanf(id, mapvmdvpg_name_format, &out.datacenter, &out.switchName, &out.portgroupName, &out.vmName)
 	return
-}
-
-// wait for task end
-func waitForTaskEnd(task *object.Task, message string) error {
-	//time.Sleep(time.Second * 5)
-	if err := task.Wait(context.TODO()); err != nil {
-		spew.Dump("Error in waitForTaskEnd", err)
-
-		taskmo := mo.Task{}
-		task.Properties(context.TODO(), task.Reference(), []string{"info"}, &taskmo)
-		spew.Dump("Task", taskmo)
-		return fmt.Errorf("[%T] → "+message, err, err)
-	}
-	return nil
-
 }
 
 func getDCAndFolders(c *govmomi.Client, datacenter string) (*object.Datacenter, *object.DatacenterFolders, error) {
