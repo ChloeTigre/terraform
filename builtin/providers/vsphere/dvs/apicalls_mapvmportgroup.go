@@ -80,7 +80,7 @@ func (m *dvs_map_vm_dvpg) createMapVMDVPG(c *govmomi.Client) error {
 		errs = append(errs, err)
 		return err
 	}
-	veth, _, err := getVEthByName(c, vm, m.nicLabel)
+	veth, err := getVEthByName(c, vm, m.nicLabel)
 	if err != nil {
 		errs = append(errs, err)
 		return err
@@ -91,10 +91,15 @@ func (m *dvs_map_vm_dvpg) createMapVMDVPG(c *govmomi.Client) error {
 	}
 
 	// update backing informations of the VEth so it connects to the Portgroup
-
-	err = bindVEthAndPortgroup(c, vm, veth, portgroup)
-	if err != nil {
-		errs = append(errs, err)
+	switch veth.(type) {
+	case types.BaseVirtualEthernetCard:
+		veth2 := veth.(types.BaseVirtualEthernetCard)
+		err = bindVEthAndPortgroup(c, vm, veth2, portgroup)
+		if err != nil {
+			errs = append(errs, err)
+		}
+	default:
+		errs = append(errs, fmt.Errorf("Cannot handle type %T", veth))
 	}
 	// end
 	if len(errs) > 0 {
@@ -116,7 +121,7 @@ func (m *dvs_map_vm_dvpg) deleteMapVMDVPG(c *govmomi.Client) error {
 		errs = append(errs, err)
 		return err
 	}
-	veth, _, err := getVEthByName(c, vm, m.nicLabel)
+	veth, err := getVEthByName(c, vm, m.nicLabel)
 	if err != nil {
 		errs = append(errs, err)
 	}

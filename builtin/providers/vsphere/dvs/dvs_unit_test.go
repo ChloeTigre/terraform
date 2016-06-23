@@ -125,7 +125,7 @@ func doDeleteDVPortgroup(dvpg *dvs_port_group, t *testing.T) {
 	}
 }
 
-func TestPortgroupCreationAndDestruction(t *testing.T) {
+func aaTestPortgroupCreationAndDestruction(t *testing.T) {
 	// need:
 	// datacenter name, switch path, portgroup name
 	dvsPath := "dvpg_cerberhost/n4a-ibm-cerberhost-dvs-1"
@@ -169,7 +169,7 @@ func doDeleteMapVMDVPG(mapvm *dvs_map_vm_dvpg, t *testing.T) {
 }
 
 // Test VM-DVS binding creation and destruction
-func aaTestVMDVSCreationAndDestruction(t *testing.T) {
+func TestVMDVSCreationAndDestruction(t *testing.T) {
 	// need:
 	// datacenter name, switch path, portgroup name, VM path name
 	//dvsO := buildTestDVS("test3")
@@ -183,10 +183,10 @@ func aaTestVMDVSCreationAndDestruction(t *testing.T) {
 	mapvmdvpg := buildTestMapVMDVPG(dvpg)
 
 	//doCreateDVS(dvsO, t)
-	doCreateDVPortgroup(dvpg, t)
+	//doCreateDVPortgroup(dvpg, t)
 	doCreateMapVMDVPG(mapvmdvpg, t)
 	doDeleteMapVMDVPG(mapvmdvpg, t)
-	doDeleteDVPortgroup(dvpg, t)
+	//doDeleteDVPortgroup(dvpg, t)
 }
 
 // Test read DVS

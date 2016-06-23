@@ -2,7 +2,7 @@ package dvs
 
 import "regexp"
 
-const maphostdvs_name_format = "vSphere::MapHostDVS::%s::%s"
+const maphostdvs_name_format = "vSphere::MapHostDVS::%s::%s::%s"
 
 var re_maphostdvs *regexp.Regexp
 

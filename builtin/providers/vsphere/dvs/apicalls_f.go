@@ -3,14 +3,12 @@ package dvs
 import (
 	"fmt"
 	"log"
-	"strings"
 
 	"github.com/davecgh/go-spew/spew" // debug dependency
 	"github.com/hashicorp/terraform/builtin/providers/vsphere/helpers"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
-	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
 	"golang.org/x/net/context"
 )
@@ -123,15 +121,16 @@ func getDeviceByName(c *govmomi.Client, vm *object.VirtualMachine, deviceName st
 
 // VEth manipulation functions
 
-func getVEthByName(c *govmomi.Client, vm *object.VirtualMachine, deviceName string) (*types.VirtualEthernetCard, string, error) {
+func getVEthByName(c *govmomi.Client, vm *object.VirtualMachine, deviceName string) (types.BaseVirtualEthernetCard, error) {
 	dev, err := getDeviceByName(c, vm, deviceName)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	if dev == nil {
-		return nil, "", fmt.Errorf("Cannot return VEth: %T:%+v", err, err)
+		return nil, fmt.Errorf("Cannot return VEth: %T:%+v", err, err)
 	}
-	vc := (*dev).(types.BaseVirtualEthernetCard).GetVirtualEthernetCard()
+	return (*dev).(types.BaseVirtualEthernetCard), nil
+	/*vc := (*dev).(types.BaseVirtualEthernetCard).GetVirtualEthernetCard()
 	if vmx2, casted := (*dev).(*types.VirtualVmxnet2); casted {
 		return vmx2.GetVirtualEthernetCard(), "vmx2", nil
 	} else if vmx3, casted := (*dev).(*types.VirtualVmxnet3); casted {
@@ -148,9 +147,34 @@ func getVEthByName(c *govmomi.Client, vm *object.VirtualMachine, deviceName stri
 		return sriov.GetVirtualEthernetCard(), "sriov", nil
 	}
 	return vc, "unknown", nil
+	*/
 }
 
-func buildVEthDeviceChange(c *govmomi.Client, veth *types.VirtualEthernetCard, portgroup *dvs_port_group, optype types.VirtualDeviceConfigSpecOperation) (*types.VirtualDeviceConfigSpec, error) {
+func setVethDeviceAndBackingInEthChange(devchange *types.VirtualDeviceConfigSpec, veth types.BaseVirtualEthernetCard, cbk types.BaseVirtualDeviceBackingInfo) error {
+	switch t := veth.(type) {
+	case *types.VirtualVmxnet3:
+		devchange.Device = t
+		t.Backing = cbk
+	case *types.VirtualVmxnet2:
+		devchange.Device = t
+		t.Backing = cbk
+	case *types.VirtualE1000:
+		devchange.Device = t
+		t.Backing = cbk
+	case *types.VirtualE1000e:
+		devchange.Device = t
+		t.Backing = cbk
+	case *types.VirtualPCNet32:
+		devchange.Device = t
+		t.Backing = cbk
+	default:
+		return fmt.Errorf("Incorrect veth type! %T", veth)
+	}
+	return nil
+}
+
+// buildVEthDeviceChange veth *types.VirtualEthernetCard
+func buildVEthDeviceChange(c *govmomi.Client, veth types.BaseVirtualEthernetCard, portgroup *dvs_port_group, optype types.VirtualDeviceConfigSpecOperation) (*types.VirtualDeviceConfigSpec, error) {
 	devChange := types.VirtualDeviceConfigSpec{}
 	cbk := types.VirtualEthernetCardDistributedVirtualPortBackingInfo{}
 
@@ -174,24 +198,24 @@ func buildVEthDeviceChange(c *govmomi.Client, veth *types.VirtualEthernetCard, p
 
 	cbk.Port = types.DistributedVirtualSwitchPortConnection{
 		PortgroupKey: properties.Key,
-		// PortKey:    "372",
-		SwitchUuid: dvsProps.Uuid,
+		SwitchUuid:   dvsProps.Uuid,
 	}
 	devChange.Operation = optype // `should be add, remove or edit`
-	devChange.Device = veth
-	veth.Backing = &cbk
+	setVethDeviceAndBackingInEthChange(&devChange, veth, &cbk)
 	return &devChange, nil
 }
 
 // bind a VEth and a portgroup → change the VEth so it is bound to one port in the portgroup.
-func bindVEthAndPortgroup(c *govmomi.Client, vm *object.VirtualMachine, veth *types.VirtualEthernetCard, portgroup *dvs_port_group) error {
+func bindVEthAndPortgroup(c *govmomi.Client, vm *object.VirtualMachine, veth types.BaseVirtualEthernetCard, portgroup *dvs_port_group) error {
 	// use a VirtualMachineConfigSpec.deviceChange (VirtualDeviceConfigSpec[])
 	conf := types.VirtualMachineConfigSpec{}
 	devspec, err := buildVEthDeviceChange(c, veth, portgroup, types.VirtualDeviceConfigSpecOperationEdit)
 	if err != nil {
 		return err
 	}
-	//devspec.Device.GetVirtualDevice().Connectable.Connected = true
+	devspec.Device.GetVirtualDevice().Connectable = &(types.VirtualDeviceConnectInfo{
+		Connected: true,
+	})
 
 	conf.DeviceChange = []types.BaseVirtualDeviceConfigSpec{devspec}
 
@@ -205,14 +229,16 @@ func bindVEthAndPortgroup(c *govmomi.Client, vm *object.VirtualMachine, veth *ty
 	return helpers.WaitForTaskEnd(task, "Cannot complete vm.Reconfigure: %+v")
 }
 
-func unbindVEthAndPortgroup(c *govmomi.Client, vm *object.VirtualMachine, veth *types.VirtualEthernetCard, portgroup *dvs_port_group) error {
+func unbindVEthAndPortgroup(c *govmomi.Client, vm *object.VirtualMachine, veth types.BaseVirtualEthernetCard, portgroup *dvs_port_group) error {
 	// use a VirtualMachineConfigSpec.deviceChange (VirtualDeviceConfigSpec[])
 	conf := types.VirtualMachineConfigSpec{}
 	devspec, err := buildVEthDeviceChange(c, veth, portgroup, types.VirtualDeviceConfigSpecOperationEdit)
 	if err != nil {
 		return err
 	}
-	//devspec.Device.GetVirtualDevice().Connectable.Connected = false
+	devspec.Device.GetVirtualDevice().Connectable = &(types.VirtualDeviceConnectInfo{
+		Connected: false,
+	})
 
 	conf.DeviceChange = []types.BaseVirtualDeviceConfigSpec{devspec}
 
@@ -225,20 +251,4 @@ func unbindVEthAndPortgroup(c *govmomi.Client, vm *object.VirtualMachine, veth *
 
 func vmDebug(c *govmomi.Client, vm *object.VirtualMachine) {
 	return
-	log.Println(strings.Repeat("*", 80))
-	props := mo.VirtualMachine{}
-	err := vm.Properties(context.TODO(), vm.Reference(), []string{"config"}, &props)
-	if err != nil {
-		log.Printf("\n\n[DEBUG] Cannot get VM properties: [%+v]\n\n", err)
-	}
-	log.Printf("\n\nConfig: %+v\n\n", props.Config)
-	veth, vtype, err := getVEthByName(c, vm, "ethernet-0")
-	if err != nil {
-		log.Printf("\n\n[DEBUG] Cannot get ethernet-0: [%+v]\n\n", err)
-	}
-	log.Printf("Ethernet type: %s", vtype)
-	bk := veth.Backing.(*types.VirtualEthernetCardDistributedVirtualPortBackingInfo)
-	log.Printf("[DEBUG] Backing: %+v", bk)
-	log.Println(strings.Repeat("-", 80))
-
 }
