@@ -1,3 +1,7 @@
+/**
+External interface to the DVS module that exposes the plug-in
+to Terraform
+**/
 package dvs
 
 import "github.com/hashicorp/terraform/helper/schema"

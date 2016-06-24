@@ -13,10 +13,6 @@ import (
 	"golang.org/x/net/context"
 )
 
-// functions
-
-// object loading functions
-
 // load a DVS
 func loadDVS(c *govmomi.Client, datacenter, dvsPath string, output *dvs) error {
 	output.datacenter = datacenter
@@ -229,6 +225,7 @@ func bindVEthAndPortgroup(c *govmomi.Client, vm *object.VirtualMachine, veth typ
 	return helpers.WaitForTaskEnd(task, "Cannot complete vm.Reconfigure: %+v")
 }
 
+// unbind a VEth and a Portgroup
 func unbindVEthAndPortgroup(c *govmomi.Client, vm *object.VirtualMachine, veth types.BaseVirtualEthernetCard, portgroup *dvs_port_group) error {
 	// use a VirtualMachineConfigSpec.deviceChange (VirtualDeviceConfigSpec[])
 	conf := types.VirtualMachineConfigSpec{}
