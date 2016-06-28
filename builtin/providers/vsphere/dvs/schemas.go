@@ -9,6 +9,16 @@ func resourceVSphereDVSSchema() map[string]*schema.Schema {
 			Required: true,
 			// ForceNew:		true,
 		},
+		"folder": &schema.Schema{
+			Type:     schema.TypeString,
+			Required: true,
+			// ForceNew:		true,
+		},
+		"datacenter": &schema.Schema{
+			Type:     schema.TypeString,
+			Required: true,
+			// ForceNew:		true,
+		},
 		"extension_key": &schema.Schema{
 			Type:     schema.TypeString,
 			Optional: true,
