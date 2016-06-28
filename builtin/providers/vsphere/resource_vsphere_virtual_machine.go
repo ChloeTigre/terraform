@@ -6,6 +6,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/terraform/builtin/providers/vsphere/helpers"
 	"github.com/hashicorp/terraform/helper/schema"
@@ -916,15 +917,26 @@ func resourceVSphereVirtualMachineRead(d *schema.ResourceData, meta interface{})
 		return err
 	}
 
-	if state == types.VirtualMachinePowerStatePoweredOn {
-		// wait for interfaces to appear
-		_, err = vm.WaitForNetIP(context.TODO(), true)
-		if err != nil {
-			return err
-		}
-	}
+	// wait for interfaces to appear
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10 * time.Second)
+
+    if state == types.VirtualMachinePowerStatePoweredOn {
+        func() {
+            defer cancel()
+            _, err = vm.WaitForNetIP(ctx, true)
+        }()
+        if err != context.DeadlineExceeded && err != nil {
+            // wait for interfaces to appear
+            _, err = vm.WaitForNetIP(context.TODO(), true)
+            if err != nil {
+                return err
+            }
+        }
+    }
 
 	var mvm mo.VirtualMachine
+
 	collector := property.DefaultCollector(client.Client)
 	if err := collector.RetrieveOne(context.TODO(), vm.Reference(), []string{"guest", "summary", "datastore", "config"}, &mvm); err != nil {
 		return err
@@ -1059,7 +1071,10 @@ func resourceVSphereVirtualMachineRead(d *schema.ResourceData, meta interface{})
 	if err != nil {
 		return fmt.Errorf("Invalid network interfaces to set: %#v", networkInterfaces)
 	}
+	if len(networkInterfaces) > 0 {
+		log.Printf("[DEBUG] ip address: %v", networkInterfaces[0]["ipv4_address"].(string))
 
+<<<<<<< HEAD
 	if len(networkInterfaces) > 0 {
 		if _, ok := networkInterfaces[0]["ipv4_address"]; ok {
 			log.Printf("[DEBUG] ip address: %v", networkInterfaces[0]["ipv4_address"].(string))
@@ -1068,6 +1083,12 @@ func resourceVSphereVirtualMachineRead(d *schema.ResourceData, meta interface{})
 				"host": networkInterfaces[0]["ipv4_address"].(string),
 			})
 		}
+=======
+		d.SetConnInfo(map[string]string{
+			"type": "ssh",
+			"host": networkInterfaces[0]["ipv4_address"].(string),
+		})
+>>>>>>> Allow timeout when no IP will be allocated
 	}
 
 	var rootDatastore string
