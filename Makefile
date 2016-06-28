@@ -87,7 +87,6 @@ fmt:
 	gofmt -w $(GOFMT_FILES)
 
 fmtcheck:
-	@echo "skip - ok"
-	# @sh -c "'$(CURDIR)/scripts/gofmtcheck.sh'"
+	@sh -c "'$(CURDIR)/scripts/gofmtcheck.sh'"
 
 .PHONY: bin default generate test vet fmt fmtcheck tools
