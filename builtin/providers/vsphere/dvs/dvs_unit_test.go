@@ -129,7 +129,7 @@ func doDeleteDVPortgroup(dvpg *dvs_port_group, t *testing.T) {
 func aaTestPortgroupCreationAndDestruction(t *testing.T) {
 	// need:
 	// datacenter name, switch path, portgroup name
-	dvsPath := "dvpg_cerberhost/n4a-ibm-cerberhost-dvs-1"
+	dvsPath := "fillme"
 	dvsO := dvs{}
 	if err := loadDVS(client, testParameters["datacenter"].(string), dvsPath, &dvsO); err != nil {
 		t.Logf("Could not load DVS with client %+v %+v %+v %+v: %+v\n", client, testParameters["datacenter"], dvsPath, dvsO, err)
@@ -175,7 +175,7 @@ func aaTestVMDVSCreationAndDestruction(t *testing.T) {
 	// datacenter name, switch path, portgroup name, VM path name
 	//dvsO := buildTestDVS("test3")
 	dvsO := dvs{}
-	dvsPath := "dvpg_cerberhost/n4a-ibm-cerberhost-dvs-1"
+	dvsPath := "fillme"
 	if err := loadDVS(client, testParameters["datacenter"].(string), dvsPath, &dvsO); err != nil {
 		t.Logf("Could not load DVS with client %+v %+v %+v %+v: %+v\n", client, testParameters["datacenter"], dvsPath, dvsO, err)
 		t.FailNow()
