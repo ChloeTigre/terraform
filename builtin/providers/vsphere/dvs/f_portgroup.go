@@ -70,7 +70,8 @@ func resourceVSphereDVPGRead(d *schema.ResourceData, meta interface{}) error {
 	if len(errs) > 0 { // we cannot load the DVPG for a reason
 		log.Printf("[ERROR] Cannot load DVPG %+v", resourceID)
 		d.SetId("")
-		return fmt.Errorf("Errors in DVPGRead: %+v", errs)
+		log.Printf("[ERROR] Errors in DVPGRead: %+v", errs)
+		return nil
 	}
 	return unparseDVPG(d, &dvspgObject)
 }
