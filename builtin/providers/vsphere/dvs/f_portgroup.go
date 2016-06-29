@@ -24,7 +24,7 @@ func (p *dvs_port_group) getID() string {
 
 func (p *dvs_port_group) getFullPath() string {
 	switchID, _ := parseDVSID(p.switchId)
-	return fmt.Sprintf("%s/%s", switchID.path, p.name)
+	return fmt.Sprintf("%s/%s", dirname(switchID.path), p.name)
 }
 
 func resourceVSphereDVPGCreate(d *schema.ResourceData, meta interface{}) error {
