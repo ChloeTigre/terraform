@@ -77,8 +77,6 @@ func resourceVSphereDVPGRead(d *schema.ResourceData, meta interface{}) error {
 }
 
 func resourceVSphereDVPGUpdate(d *schema.ResourceData, meta interface{}) error {
-	err := fmt.Errorf("Not implemented")
-	return err
 	/*
 		// now populate the object
 		if err:=unparseDVPG(d, &dvspgObject); err != nil {
@@ -86,6 +84,8 @@ func resourceVSphereDVPGUpdate(d *schema.ResourceData, meta interface{}) error {
 			return err
 		}
 	*/
+	log.Printf("[ERROR] resourceVSphereDVPGUpdate::Not implemented yet")
+	return nil
 }
 
 func resourceVSphereDVPGDelete(d *schema.ResourceData, meta interface{}) error {
