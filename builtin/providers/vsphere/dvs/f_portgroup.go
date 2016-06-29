@@ -3,7 +3,7 @@ package dvs
 import (
 	"fmt"
 	"log"
-
+	"strconv"
 	"github.com/hashicorp/terraform/helper/schema"
 )
 
@@ -20,6 +20,11 @@ func (p *dvs_port_group) getID() string {
 	switchID, _ := parseDVSID(p.switchId)
 
 	return fmt.Sprintf(dvpg_name_format, switchID.datacenter, switchID.path, p.name)
+}
+
+func (p *dvs_port_group) getFullPath() string {
+	switchID, _ := parseDVSID(p.switchId)
+	return fmt.Sprintf("%s/%s", switchID.path, p.name)
 }
 
 func resourceVSphereDVPGCreate(d *schema.ResourceData, meta interface{}) error {
@@ -66,7 +71,7 @@ func resourceVSphereDVPGRead(d *schema.ResourceData, meta interface{}) error {
 		log.Printf("[ERROR] Cannot load DVPG %+v", resourceID)
 		return fmt.Errorf("Errors in DVPGRead: %+v", errs)
 	}
-	return nil
+	return unparseDVPG(d, &dvspgObject)
 }
 
 func resourceVSphereDVPGUpdate(d *schema.ResourceData, meta interface{}) error {
@@ -179,15 +184,16 @@ func unparseDVPG(d *schema.ResourceData, in *dvs_port_group) error {
 		"auto_expand":      in.autoExpand,
 		"num_ports":        in.numPorts,
 		"port_name_format": in.portNameFormat,
-		"policy": map[string]bool{
-			"allow_block_override":          in.policy.allowBlockOverride,
-			"allow_live_port_moving":        in.policy.allowLivePortMoving,
-			"allow_network_rp_override":     in.policy.allowNetworkRPOverride,
-			"port_config_reset_disconnect":  in.policy.portConfigResetDisconnect,
-			"allow_shaping_override":        in.policy.allowShapingOverride,
-			"allow_traffic_filter_override": in.policy.allowTrafficFilterOverride,
-			"allow_vendor_config_override":  in.policy.allowVendorConfigOverride,
+		"policy": map[string]interface{}{
+			"allow_block_override":          strconv.FormatBool(in.policy.allowBlockOverride),
+			"allow_live_port_moving":        strconv.FormatBool(in.policy.allowLivePortMoving),
+			"allow_network_rp_override":     strconv.FormatBool(in.policy.allowNetworkRPOverride),
+			"port_config_reset_disconnect":  strconv.FormatBool(in.policy.portConfigResetDisconnect),
+			"allow_shaping_override":        strconv.FormatBool(in.policy.allowShapingOverride),
+			"allow_traffic_filter_override": strconv.FormatBool(in.policy.allowTrafficFilterOverride),
+			"allow_vendor_config_override":  strconv.FormatBool(in.policy.allowVendorConfigOverride),
 		},
+		"full_path": in.getFullPath(),
 	}
 	// set values
 	for fieldName, fieldValue := range fieldsMap {

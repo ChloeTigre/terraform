@@ -28,7 +28,7 @@ func resourceVSphereDVSSchema() map[string]*schema.Schema {
 			Optional: true,
 		},
 		"contact": &schema.Schema{
-			Type:     schema.TypeList,
+			Type:     schema.TypeMap,
 			Optional: true,
 			Elem: &schema.Resource{
 				Schema: map[string]*schema.Schema{
@@ -44,7 +44,7 @@ func resourceVSphereDVSSchema() map[string]*schema.Schema {
 			},
 		},
 		"switch_usage_policy": &schema.Schema{
-			Type:     schema.TypeList,
+			Type:     schema.TypeMap,
 			Optional: true,
 			Elem: &schema.Resource{
 				Schema: map[string]*schema.Schema{
@@ -70,6 +70,10 @@ func resourceVSphereDVSSchema() map[string]*schema.Schema {
 		"num_standalone_ports": &schema.Schema{
 			Type:     schema.TypeInt,
 			Optional: true,
+		},
+		"full_path": &schema.Schema{
+			Type:	schema.TypeString,
+			Computed: true,
 		},
 	}
 }
@@ -118,7 +122,7 @@ func resourceVSphereDVPGSchema() map[string]*schema.Schema {
 			Optional: true,
 		},
 		"policy": &schema.Schema{
-			Type:     schema.TypeList,
+			Type:     schema.TypeMap,
 			Optional: true,
 			Elem: &schema.Resource{
 				Schema: map[string]*schema.Schema{
@@ -152,6 +156,10 @@ func resourceVSphereDVPGSchema() map[string]*schema.Schema {
 					},
 				},
 			},
+		},
+		"full_path": &schema.Schema{
+			Type:	schema.TypeString,
+			Computed: true,
 		},
 	}
 }

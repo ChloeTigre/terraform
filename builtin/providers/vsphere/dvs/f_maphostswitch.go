@@ -88,14 +88,13 @@ func resourceVSphereMapHostDVSRead(d *schema.ResourceData, meta interface{}) err
 		goto EndCondition
 	}
 	// now fill the ResourceData
-	unparseMapHostDVS(d, maphostdvs)
 
 EndCondition:
 	// tear down and return
 	if len(errs) > 0 {
 		return fmt.Errorf("Errors in MapHostDVSRead: %+v", errs)
 	}
-	return nil
+	return unparseMapHostDVS(d, maphostdvs)
 }
 
 func resourceVSphereMapHostDVSDelete(d *schema.ResourceData, meta interface{}) error {

@@ -3,6 +3,7 @@ package dvs
 import "github.com/hashicorp/terraform/helper/schema"
 import "log"
 import "fmt"
+import "strconv"
 
 // name format for DVS: datacenter, name
 
@@ -62,15 +63,8 @@ func resourceVSphereDVSRead(d *schema.ResourceData, meta interface{}) error {
 		log.Printf("[ERROR] Cannot load DVS %+v", resourceID)
 		return errs[0]
 	}
-	// now we have the DVS so let's populate it
-	/*
-		if err=unparseDVS(d, &dvsObject); err != nil {
-			log.Printf("[ERROR] Cannot populate DVS: %+v", err)
-			return err
-		}
-	*/
 	// now the state is loaded so we should return
-	return nil
+	return unparseDVS(d, &dvsObject)
 }
 
 func resourceVSphereDVSUpdate(d *schema.ResourceData, meta interface{}) error {
@@ -183,20 +177,21 @@ func unparseDVS(d *schema.ResourceData, in *dvs) error {
 		"description":          in.description,
 		"switch_ip_address":    in.switchIPAddress,
 		"num_standalone_ports": in.numStandalonePorts,
-		"contact": map[string]string{
+		"contact": map[string]interface{}{
 			"name":  in.contact.name,
 			"infos": in.contact.infos,
 		},
-		"switch_usage_policy": map[string]bool{
-			"auto_preinstall_allowed": in.switchUsagePolicy.autoPreinstallAllowed,
-			"auto_upgrade_allowed":    in.switchUsagePolicy.autoUpgradeAllowed,
-			"partial_upgrade_allowed": in.switchUsagePolicy.partialUpgradeAllowed,
+		"switch_usage_policy": map[string]interface{}{
+			"auto_preinstall_allowed": strconv.FormatBool(in.switchUsagePolicy.autoPreinstallAllowed),
+			"auto_upgrade_allowed":    strconv.FormatBool(in.switchUsagePolicy.autoUpgradeAllowed),
+			"partial_upgrade_allowed": strconv.FormatBool(in.switchUsagePolicy.partialUpgradeAllowed),
 		},
+		"full_path": in.getFullName(),
 	}
 	// set values
 	for fieldName, fieldValue := range fieldsMap {
 		if err := d.Set(fieldName, fieldValue); err != nil {
-			errs = append(errs, fmt.Errorf("%s invalid: %s", fieldName, fieldValue))
+			errs = append(errs, fmt.Errorf("[[%s] invalid: [%s]]: %s", fieldName, fieldValue, err))
 		}
 	}
 	// handle errors
