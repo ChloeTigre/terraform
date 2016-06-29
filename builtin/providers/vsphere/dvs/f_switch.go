@@ -76,7 +76,8 @@ func resourceVSphereDVSUpdate(d *schema.ResourceData, meta interface{}) error {
 
 	// detect the different changes in the object and perform needed updates
 	*/
-	return fmt.Errorf("Not implemented yet")
+	log.Printf("[ERROR] resourceVSphereDVSUpdate::Not implemented yet")
+	return nil
 }
 
 func resourceVSphereDVSDelete(d *schema.ResourceData, meta interface{}) error {
