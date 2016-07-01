@@ -35,6 +35,7 @@ func resourceVSphereDVSCreate(d *schema.ResourceData, meta interface{}) error {
 		return fmt.Errorf("Cannot createSwitch: %+v", err)
 	}
 	d.SetId(item.getID())
+	d.Set("full_path", item.getFullName())
 	return nil
 }
 

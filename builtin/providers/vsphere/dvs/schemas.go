@@ -95,6 +95,22 @@ func resourceVSphereDVPGSchema() map[string]*schema.Schema {
 			Type:     schema.TypeInt,
 			Optional: true,
 		},
+		"vlan_range": &schema.Schema{
+			Type:	 schema.TypeSet,
+			Optional: true,
+			Elem: &schema.Resource{
+				Schema: map[string]*schema.Schema{
+					"start": &schema.Schema{
+						Type: schema.TypeInt,
+						Required: true,
+					},
+					"end": &schema.Schema{
+						Type: schema.TypeInt,
+						Required: true,
+					},
+				},
+			},
+		},
 		"datacenter": &schema.Schema{
 			Type:     schema.TypeString,
 			Required: true,

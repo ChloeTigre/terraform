@@ -25,10 +25,16 @@ type dvs_map_host_dvs struct {
 	nicName    []string
 }
 
+type dvs_port_range struct {
+	start	int
+	end	int
+}
+
 type dvs_port_group struct {
 	name           string
 	switchId       string
 	defaultVLAN    int
+	vlanRanges     []dvs_port_range
 	pgType         string
 	description    string
 	autoExpand     bool

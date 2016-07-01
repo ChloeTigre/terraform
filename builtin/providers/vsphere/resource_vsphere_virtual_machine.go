@@ -794,6 +794,7 @@ func resourceVSphereVirtualMachineCreate(d *schema.ResourceData, meta interface{
 			hasBootableDisk := false
 			for _, value := range diskSet.List() {
 				disk := value.(map[string]interface{})
+				log.Printf("[DEBUG] !!  disk map: %+v", disk)
 				newDisk := hardDisk{}
 
 				if v, ok := disk["template"].(string); ok && v != "" {
@@ -862,7 +863,7 @@ func resourceVSphereVirtualMachineCreate(d *schema.ResourceData, meta interface{
 				}
 			}
 			vm.hardDisks = disks
-			log.Printf("[DEBUG] disk init: %v", disks)
+			log.Printf("[DEBUG] disk init: %+v", disks)
 		}
 	}
 
@@ -1022,6 +1023,11 @@ func resourceVSphereVirtualMachineRead(d *schema.ResourceData, meta interface{})
 			networkInterface := make(map[string]interface{})
 			networkInterface["label"] = v.Network
 			networkInterface["mac_address"] = v.MacAddress
+			log.Printf("[DEBUG]v.IpConfig: %+v\n\n\n", v.IpConfig)
+			networkInterfaces = append(networkInterfaces, networkInterface)
+			if v.IpConfig == nil {
+				continue
+			}
 			for _, ip := range v.IpConfig.IpAddress {
 				p := net.ParseIP(ip.IpAddress)
 				if p.To4() != nil {
@@ -1038,7 +1044,6 @@ func resourceVSphereVirtualMachineRead(d *schema.ResourceData, meta interface{})
 				log.Printf("[DEBUG] networkInterface: %#v", networkInterface)
 			}
 			log.Printf("[DEBUG] networkInterface: %#v", networkInterface)
-			networkInterfaces = append(networkInterfaces, networkInterface)
 		}
 	}
 	if mvm.Guest.IpStack != nil {
@@ -1071,7 +1076,7 @@ func resourceVSphereVirtualMachineRead(d *schema.ResourceData, meta interface{})
 	if err != nil {
 		return fmt.Errorf("Invalid network interfaces to set: %#v", networkInterfaces)
 	}
-	if len(networkInterfaces) > 0 {
+	if len(networkInterfaces) > 0 && networkInterfaces[0]["ipv4_address"] != nil {
 		log.Printf("[DEBUG] ip address: %v", networkInterfaces[0]["ipv4_address"].(string))
 
 <<<<<<< HEAD

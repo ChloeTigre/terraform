@@ -85,10 +85,24 @@ func (p *dvs_port_group) makeDVPGConfigSpec() types.DVPortgroupConfigSpec {
 		TrafficFilterOverrideAllowed:       &p.policy.allowTrafficFilterOverride,
 		VendorConfigOverrideAllowed:        p.policy.allowVendorConfigOverride,
 	}
+
 	dpc := types.VMwareDVSPortSetting{
 		Vlan: &(types.VmwareDistributedVirtualSwitchVlanIdSpec{
+
 			VlanId: int32(p.defaultVLAN),
+
 		}),
+	}
+	dpcTrunk := types.VmwareDistributedVirtualSwitchTrunkVlanSpec{}
+
+	for _, i := range p.vlanRanges {
+		dpcTrunk.VlanId = append(dpcTrunk.VlanId, types.NumericRange{
+			Start: int32(i.start),
+			End: int32(i.end),
+		})
+	}
+	if len(p.vlanRanges) > 0 {
+		dpc.Vlan = &dpcTrunk
 	}
 	return types.DVPortgroupConfigSpec{
 		AutoExpand:        &p.autoExpand,

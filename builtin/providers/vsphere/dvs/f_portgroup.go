@@ -43,6 +43,7 @@ func resourceVSphereDVPGCreate(d *schema.ResourceData, meta interface{}) error {
 		return fmt.Errorf("Cannot createPortgroup: %+v", err)
 	}
 	d.SetId(item.getID())
+	d.Set("full_path", item.getFullPath())
 	return nil
 }
 
@@ -137,6 +138,11 @@ EndCondition:
 // parse a DVPG ResourceData to a dvs_port_group struct
 func parseDVPG(d *schema.ResourceData, out *dvs_port_group) error {
 	o := out
+	_, okvlan := d.GetOk("default_vlan")
+	_, okrange := d.GetOk("vlan_range")
+	if okvlan && okrange {
+		return fmt.Errorf("Cannot set both default_vlan and vlan_range")
+	}
 	if v, ok := d.GetOk("name"); ok {
 		o.name = v.(string)
 	}
@@ -157,6 +163,24 @@ func parseDVPG(d *schema.ResourceData, out *dvs_port_group) error {
 	}
 	if v, ok := d.GetOk("port_name_format"); ok {
 		o.portNameFormat = v.(string)
+	}
+	if a, ok := d.GetOk("vlan_range"); ok {
+		alist, casted := a.(*schema.Set)
+		if !casted {
+			log.Panicf("Bad cast ☹: %+v %T", a, a)
+		}
+		for _, v := range alist.List() {
+			vmap, casted := v.(map[string]interface{})
+			if !casted {
+				log.Panicf("Bad cast 2 ☹: %+v %T", v, v)
+			}
+			o.vlanRanges = append(
+				o.vlanRanges,
+				dvs_port_range{
+					start: vmap["start"].(int),
+					end: vmap["end"].(int),
+				})
+		}
 	}
 	if s, ok := d.GetOk("policy"); ok {
 		vmap, casted := s.(map[string]interface{})
@@ -197,12 +221,21 @@ func unparseDVPG(d *schema.ResourceData, in *dvs_port_group) error {
 		},
 		"full_path": in.getFullPath(),
 	}
+	vlans := []map[string]interface{}{}
+	for _, numPair := range in.vlanRanges {
+		vlans = append(vlans, map[string]interface{} {
+			"start": fmt.Sprintf("%d", numPair.start),
+			"end": fmt.Sprintf("%d", numPair.end),
+		})
+	}
+	fieldsMap["vlan_range"] = vlans
 	// set values
 	for fieldName, fieldValue := range fieldsMap {
 		if err := d.Set(fieldName, fieldValue); err != nil {
 			errs = append(errs, fmt.Errorf("%s invalid: %s", fieldName, fieldValue))
 		}
 	}
+
 	// handle errors
 	if len(errs) > 0 {
 		return fmt.Errorf("Errors in unparseDVPG: invalid resource definition!\n%+v", errs)
