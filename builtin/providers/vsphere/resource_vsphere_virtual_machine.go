@@ -2,13 +2,7 @@ package vsphere
 
 import (
 	"fmt"
-	"log"
-	"net"
-	"strconv"
-	"strings"
-
 	"github.com/davecgh/go-spew/spew"
-
 	"github.com/hashicorp/terraform/builtin/providers/vsphere/helpers"
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/vmware/govmomi"
@@ -18,6 +12,10 @@ import (
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
 	"golang.org/x/net/context"
+	"log"
+	"net"
+	"strconv"
+	"strings"
 )
 
 var DefaultDNSSuffixes = []string{
@@ -496,7 +494,7 @@ func resourceVSphereVirtualMachineUpdate(d *schema.ResourceData, meta interface{
 	}
 
 	client := meta.(*govmomi.Client)
-	dc, err := getDatacenter(client, d.Get("datacenter").(string))
+	dc, err := helpers.GetDatacenter(client, d.Get("datacenter").(string))
 	if err != nil {
 		return err
 	}
@@ -900,7 +898,7 @@ func resourceVSphereVirtualMachineCreate(d *schema.ResourceData, meta interface{
 func resourceVSphereVirtualMachineRead(d *schema.ResourceData, meta interface{}) error {
 	log.Printf("[DEBUG] virtual machine resource data: %#v", d)
 	client := meta.(*govmomi.Client)
-	dc, err := getDatacenter(client, d.Get("datacenter").(string))
+	dc, err := helpers.GetDatacenter(client, d.Get("datacenter").(string))
 	if err != nil {
 		return err
 	}
@@ -1159,7 +1157,7 @@ func resourceVSphereVirtualMachineRead(d *schema.ResourceData, meta interface{})
 
 func resourceVSphereVirtualMachineDelete(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*govmomi.Client)
-	dc, err := getDatacenter(client, d.Get("datacenter").(string))
+	dc, err := helpers.GetDatacenter(client, d.Get("datacenter").(string))
 	if err != nil {
 		return err
 	}
@@ -1622,7 +1620,7 @@ func createCdroms(vm *object.VirtualMachine, cdroms []cdrom) error {
 }
 
 func (vm *virtualMachine) setupVirtualMachine(c *govmomi.Client) error {
-	dc, err := getDatacenter(c, vm.datacenter)
+	dc, err := helpers.GetDatacenter(c, vm.datacenter)
 
 	if err != nil {
 		return err

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/hashicorp/terraform/builtin/providers/vsphere/helpers"
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
@@ -206,7 +207,7 @@ func resourceVSphereFileUpdate(d *schema.ResourceData, meta interface{}) error {
 		}
 
 		client := meta.(*govmomi.Client)
-		dc, err := getDatacenter(client, f.datacenter)
+		dc, err := helpers.GetDatacenter(client, f.datacenter)
 		if err != nil {
 			return err
 		}
@@ -275,7 +276,7 @@ func resourceVSphereFileDelete(d *schema.ResourceData, meta interface{}) error {
 
 func deleteFile(client *govmomi.Client, f *file) error {
 
-	dc, err := getDatacenter(client, f.datacenter)
+	dc, err := helpers.GetDatacenter(client, f.datacenter)
 	if err != nil {
 		return err
 	}
