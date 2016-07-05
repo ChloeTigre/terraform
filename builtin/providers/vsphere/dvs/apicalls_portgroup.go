@@ -90,7 +90,6 @@ func (p *dvs_port_group) makeDVPGConfigSpec() types.DVPortgroupConfigSpec {
 		Vlan: &(types.VmwareDistributedVirtualSwitchVlanIdSpec{
 
 			VlanId: int32(p.defaultVLAN),
-
 		}),
 	}
 	dpcTrunk := types.VmwareDistributedVirtualSwitchTrunkVlanSpec{}
@@ -98,7 +97,7 @@ func (p *dvs_port_group) makeDVPGConfigSpec() types.DVPortgroupConfigSpec {
 	for _, i := range p.vlanRanges {
 		dpcTrunk.VlanId = append(dpcTrunk.VlanId, types.NumericRange{
 			Start: int32(i.start),
-			End: int32(i.end),
+			End:   int32(i.end),
 		})
 	}
 	if len(p.vlanRanges) > 0 {

@@ -26,8 +26,8 @@ type dvs_map_host_dvs struct {
 }
 
 type dvs_port_range struct {
-	start	int
-	end	int
+	start int
+	end   int
 }
 
 type dvs_port_group struct {

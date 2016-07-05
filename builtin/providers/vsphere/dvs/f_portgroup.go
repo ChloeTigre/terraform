@@ -2,9 +2,9 @@ package dvs
 
 import (
 	"fmt"
+	"github.com/hashicorp/terraform/helper/schema"
 	"log"
 	"strconv"
-	"github.com/hashicorp/terraform/helper/schema"
 )
 
 // name format for DVPG: datacenter, switch name, name
@@ -178,7 +178,7 @@ func parseDVPG(d *schema.ResourceData, out *dvs_port_group) error {
 				o.vlanRanges,
 				dvs_port_range{
 					start: vmap["start"].(int),
-					end: vmap["end"].(int),
+					end:   vmap["end"].(int),
 				})
 		}
 	}
@@ -223,9 +223,9 @@ func unparseDVPG(d *schema.ResourceData, in *dvs_port_group) error {
 	}
 	vlans := []map[string]interface{}{}
 	for _, numPair := range in.vlanRanges {
-		vlans = append(vlans, map[string]interface{} {
+		vlans = append(vlans, map[string]interface{}{
 			"start": fmt.Sprintf("%d", numPair.start),
-			"end": fmt.Sprintf("%d", numPair.end),
+			"end":   fmt.Sprintf("%d", numPair.end),
 		})
 	}
 	fieldsMap["vlan_range"] = vlans

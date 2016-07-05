@@ -72,7 +72,7 @@ func resourceVSphereDVSSchema() map[string]*schema.Schema {
 			Optional: true,
 		},
 		"full_path": &schema.Schema{
-			Type:	schema.TypeString,
+			Type:     schema.TypeString,
 			Computed: true,
 		},
 	}
@@ -96,16 +96,16 @@ func resourceVSphereDVPGSchema() map[string]*schema.Schema {
 			Optional: true,
 		},
 		"vlan_range": &schema.Schema{
-			Type:	 schema.TypeSet,
+			Type:     schema.TypeSet,
 			Optional: true,
 			Elem: &schema.Resource{
 				Schema: map[string]*schema.Schema{
 					"start": &schema.Schema{
-						Type: schema.TypeInt,
+						Type:     schema.TypeInt,
 						Required: true,
 					},
 					"end": &schema.Schema{
-						Type: schema.TypeInt,
+						Type:     schema.TypeInt,
 						Required: true,
 					},
 				},
@@ -174,7 +174,7 @@ func resourceVSphereDVPGSchema() map[string]*schema.Schema {
 			},
 		},
 		"full_path": &schema.Schema{
-			Type:	schema.TypeString,
+			Type:     schema.TypeString,
 			Computed: true,
 		},
 	}
