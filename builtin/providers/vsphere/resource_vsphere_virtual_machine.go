@@ -7,6 +7,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/davecgh/go-spew/spew"
+
+	"github.com/hashicorp/terraform/builtin/providers/vsphere/helpers"
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
@@ -894,7 +897,6 @@ func resourceVSphereVirtualMachineRead(d *schema.ResourceData, meta interface{})
 	}
 	finder := find.NewFinder(client.Client, true)
 	finder = finder.SetDatacenter(dc)
-
 	vm, err := finder.VirtualMachine(context.TODO(), d.Id())
 	if err != nil {
 		d.SetId("")
@@ -988,26 +990,34 @@ func resourceVSphereVirtualMachineRead(d *schema.ResourceData, meta interface{})
 	}
 
 	networkInterfaces := make([]map[string]interface{}, 0)
+	// this section relies on the VMware tools installed on the guest OS.
+	log.Printf("[DEBUG] mvm.Guest: %s", spew.Sdump(mvm.Guest))
 	for _, v := range mvm.Guest.Net {
+		log.Printf("[DEBUG] %s\n", spew.Sdump("netIf", v))
+
 		if v.DeviceConfigId >= 0 {
 			log.Printf("[DEBUG] v.Network - %#v", v.Network)
 			networkInterface := make(map[string]interface{})
 			networkInterface["label"] = v.Network
 			networkInterface["mac_address"] = v.MacAddress
-			for _, ip := range v.IpConfig.IpAddress {
-				p := net.ParseIP(ip.IpAddress)
-				if p.To4() != nil {
-					log.Printf("[DEBUG] p.String - %#v", p.String())
-					log.Printf("[DEBUG] ip.PrefixLength - %#v", ip.PrefixLength)
-					networkInterface["ipv4_address"] = p.String()
-					networkInterface["ipv4_prefix_length"] = ip.PrefixLength
-				} else if p.To16() != nil {
-					log.Printf("[DEBUG] p.String - %#v", p.String())
-					log.Printf("[DEBUG] ip.PrefixLength - %#v", ip.PrefixLength)
-					networkInterface["ipv6_address"] = p.String()
-					networkInterface["ipv6_prefix_length"] = ip.PrefixLength
+			log.Printf("[DEBUG]v.IpConfig: %+v\n\n\n", v.IpConfig)
+			networkInterfaces = append(networkInterfaces, networkInterface)
+			if v.IpConfig != nil {
+				for _, ip := range v.IpConfig.IpAddress {
+					p := net.ParseIP(ip.IpAddress)
+					if p.To4() != nil {
+						log.Printf("[DEBUG] p.String - %#v", p.String())
+						log.Printf("[DEBUG] ip.PrefixLength - %#v", ip.PrefixLength)
+						networkInterface["ipv4_address"] = p.String()
+						networkInterface["ipv4_prefix_length"] = ip.PrefixLength
+					} else if p.To16() != nil {
+						log.Printf("[DEBUG] p.String - %#v", p.String())
+						log.Printf("[DEBUG] ip.PrefixLength - %#v", ip.PrefixLength)
+						networkInterface["ipv6_address"] = p.String()
+						networkInterface["ipv6_prefix_length"] = ip.PrefixLength
+					}
+					log.Printf("[DEBUG] networkInterface: %#v", networkInterface)
 				}
-				log.Printf("[DEBUG] networkInterface: %#v", networkInterface)
 			}
 			log.Printf("[DEBUG] networkInterface: %#v", networkInterface)
 			networkInterfaces = append(networkInterfaces, networkInterface)
@@ -1038,6 +1048,54 @@ func resourceVSphereVirtualMachineRead(d *schema.ResourceData, meta interface{})
 			}
 		}
 	}
+	// end section that depends on VMware tools.
+	// rewrite without this dep
+	for _, d := range mvm.Config.Hardware.Device {
+		switch d.(type) {
+		case (types.BaseVirtualEthernetCard):
+			log.Printf("Got a Veth")
+			a, _ := d.(types.BaseVirtualEthernetCard)
+			v := a.GetVirtualEthernetCard()
+
+			networkInterface := make(map[string]interface{})
+			networkInterface["mac_address"] = v.MacAddress
+
+			backingInfo, ok := v.Backing.(*types.VirtualEthernetCardDistributedVirtualPortBackingInfo)
+			if !ok {
+				log.Printf("[ERROR] Could not cast  backingInfo of NIC: %T!", v.Backing)
+				continue
+			}
+			dvsobj := mo.DistributedVirtualSwitch{}
+
+			collector = property.DefaultCollector(client.Client)
+			dvs, err := getDVSByUUID(client, backingInfo.Port.SwitchUuid)
+			if err != nil {
+				log.Printf("[ERROR] Could not retrieve DVS")
+				return err
+
+			}
+			if err := collector.RetrieveOne(context.TODO(), dvs.Reference(), []string{"name", "portgroup"}, &dvsobj); err != nil {
+				log.Printf("[ERROR] Could not retrieve DVS")
+				return err
+			}
+			var netlabel string
+			netlabel = dirname(removefirstpartsofpath(dvs.InventoryPath))
+			for _, p := range dvsobj.Portgroup {
+				pg := mo.DistributedVirtualPortgroup{}
+				if err := collector.RetrieveOne(context.TODO(), p, []string{"name", "key"}, &pg); err != nil {
+					log.Printf("[ERROR] Could not retrieve Portgroup")
+					return err
+				}
+				if pg.Key == backingInfo.Port.PortgroupKey {
+					netlabel += "/" + pg.Name
+					networkInterface["label"] = netlabel
+					break
+				}
+			}
+			networkInterfaces = append(networkInterfaces, networkInterface)
+		}
+	}
+	// end rewrite
 	log.Printf("[DEBUG] networkInterfaces: %#v", networkInterfaces)
 	err = d.Set("network_interface", networkInterfaces)
 	if err != nil {
