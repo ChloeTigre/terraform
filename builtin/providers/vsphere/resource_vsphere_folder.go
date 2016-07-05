@@ -2,15 +2,15 @@ package vsphere
 
 import (
 	"fmt"
-	"log"
-	"path"
-	"strings"
-
+	"github.com/hashicorp/terraform/builtin/providers/vsphere/helpers"
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
 	"golang.org/x/net/context"
+	"log"
+	"path"
+	"strings"
 )
 
 type folder struct {
@@ -120,7 +120,7 @@ func resourceVSphereFolderRead(d *schema.ResourceData, meta interface{}) error {
 	log.Printf("[DEBUG] reading folder: %#v", d)
 	client := meta.(*govmomi.Client)
 
-	dc, err := getDatacenter(client, d.Get("datacenter").(string))
+	dc, err := helpers.GetDatacenter(client, d.Get("datacenter").(string))
 	if err != nil {
 		return err
 	}
@@ -166,7 +166,7 @@ func resourceVSphereFolderDelete(d *schema.ResourceData, meta interface{}) error
 }
 
 func deleteFolder(client *govmomi.Client, f *folder) error {
-	dc, err := getDatacenter(client, f.datacenter)
+	dc, err := helpers.GetDatacenter(client, f.datacenter)
 	if err != nil {
 		return err
 	}
@@ -224,7 +224,7 @@ func deleteFolder(client *govmomi.Client, f *folder) error {
 	return nil
 }
 
-// getDatacenter gets datacenter object
+// helpers.GetDatacenter gets datacenter object
 func getDatacenter(c *govmomi.Client, dc string) (*object.Datacenter, error) {
 	finder := find.NewFinder(c.Client, true)
 	if dc != "" {
