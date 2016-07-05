@@ -2,6 +2,11 @@ package vsphere
 
 import (
 	"fmt"
+	"log"
+	"net"
+	"strconv"
+	"strings"
+
 	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/terraform/builtin/providers/vsphere/helpers"
 	"github.com/hashicorp/terraform/helper/schema"
@@ -12,10 +17,6 @@ import (
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
 	"golang.org/x/net/context"
-	"log"
-	"net"
-	"strconv"
-	"strings"
 )
 
 var DefaultDNSSuffixes = []string{
@@ -639,6 +640,7 @@ func resourceVSphereVirtualMachineUpdate(d *schema.ResourceData, meta interface{
 		}
 	}
 
+	clearVSphereInventoryCache()
 	return resourceVSphereVirtualMachineRead(d, meta)
 }
 
@@ -892,6 +894,7 @@ func resourceVSphereVirtualMachineCreate(d *schema.ResourceData, meta interface{
 	d.SetId(vm.Path())
 	log.Printf("[INFO] Created virtual machine: %s", d.Id())
 
+	clearVSphereInventoryCache()
 	return resourceVSphereVirtualMachineRead(d, meta)
 }
 
@@ -1156,6 +1159,7 @@ func resourceVSphereVirtualMachineRead(d *schema.ResourceData, meta interface{})
 }
 
 func resourceVSphereVirtualMachineDelete(d *schema.ResourceData, meta interface{}) error {
+	clearVSphereInventoryCache()
 	client := meta.(*govmomi.Client)
 	dc, err := helpers.GetDatacenter(client, d.Get("datacenter").(string))
 	if err != nil {

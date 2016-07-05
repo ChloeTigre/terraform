@@ -21,6 +21,8 @@ import (
 // import "github.com/davecgh/go-spew/spew"
 // import "github.com/hashicorp/terraform/builtin/providers/vsphere/helpers"
 
+const cacheIndexFile = ".vsphereobjindex.json"
+
 func getGovmomiClient(meta interface{}) (*govmomi.Client, error) {
 	client, casted := meta.(*govmomi.Client)
 	if !casted {
@@ -74,10 +76,10 @@ var _bmo bmores
 // it is highly costly and to be called once only. It memoizes its results
 func BuildManagedObjectsIndexes(client *govmomi.Client, path string) (map[string]types.ManagedObjectReference, map[string][]string, error) {
 	if _bmo.Ret == nil {
-		if file, err := ioutil.ReadFile(".vsphereobjindex.json"); err == nil {
+		if file, err := ioutil.ReadFile(cacheIndexFile); err == nil {
 			json.Unmarshal(file, &_bmo)
 		} else {
-			log.Printf("[DEBUG] no cached data in .vsphereobjindex.json. Building cache. Will be slow.")
+			log.Printf("[DEBUG] no cached data in cacheIndexFile. Building cache. Will be slow.")
 		}
 	}
 	if path == "" && _bmo.Ret != nil {
@@ -114,8 +116,8 @@ func BuildManagedObjectsIndexes(client *govmomi.Client, path string) (map[string
 			Ret: ret,
 			Inv: inv,
 		}
-		os.Remove(".vsphereobjindex.json")
-		if file, err := os.Create(".vsphereobjindex.json"); err == nil {
+		clearVSphereInventoryCache()
+		if file, err := os.Create(cacheIndexFile); err == nil {
 			log.Printf("[DEBUG] %s", spew.Sdump(json.Marshal(ret)))
 			log.Printf("[DEBUG] %s", spew.Sdump(json.Marshal(inv)))
 			b, err := json.MarshalIndent(_bmo, "", " ")
@@ -179,6 +181,10 @@ func dirname(path string) string {
 	return out
 }
 
+func clearVSphereInventoryCache() {
+	os.Remove(cacheIndexFile)
+	_bmo = bmores{}
+}
 func removefirstpartsofpath(path string) string {
 	s := strings.Split(path, "/")
 	log.Printf("[DEBUG] split: %+v", s)
