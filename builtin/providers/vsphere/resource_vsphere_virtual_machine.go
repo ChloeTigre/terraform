@@ -1066,49 +1066,53 @@ func resourceVSphereVirtualMachineRead(d *schema.ResourceData, meta interface{})
 	}
 	// end section that depends on VMware tools.
 	// rewrite without this dep
-	for _, d := range mvm.Config.Hardware.Device {
-		switch d.(type) {
-		case (types.BaseVirtualEthernetCard):
-			log.Printf("Got a Veth")
-			a, _ := d.(types.BaseVirtualEthernetCard)
-			v := a.GetVirtualEthernetCard()
+	// THIS IS SLOW because vSphere does not perform well to search for a DVS' name.
+	// so run it only when needed
+	if len(networkInterfaces) == 0 {
+		for _, d := range mvm.Config.Hardware.Device {
+			switch d.(type) {
+			case (types.BaseVirtualEthernetCard):
+				log.Printf("Got a Veth")
+				a, _ := d.(types.BaseVirtualEthernetCard)
+				v := a.GetVirtualEthernetCard()
 
-			networkInterface := make(map[string]interface{})
-			networkInterface["mac_address"] = v.MacAddress
+				networkInterface := make(map[string]interface{})
+				networkInterface["mac_address"] = v.MacAddress
 
-			backingInfo, ok := v.Backing.(*types.VirtualEthernetCardDistributedVirtualPortBackingInfo)
-			if !ok {
-				log.Printf("[ERROR] Could not cast  backingInfo of NIC: %T!", v.Backing)
-				continue
-			}
-			dvsobj := mo.DistributedVirtualSwitch{}
+				backingInfo, ok := v.Backing.(*types.VirtualEthernetCardDistributedVirtualPortBackingInfo)
+				if !ok {
+					log.Printf("[ERROR] Could not cast  backingInfo of NIC: %T!", v.Backing)
+					continue
+				}
+				dvsobj := mo.DistributedVirtualSwitch{}
 
-			collector = property.DefaultCollector(client.Client)
-			dvs, err := getDVSByUUID(client, backingInfo.Port.SwitchUuid)
-			if err != nil {
-				log.Printf("[ERROR] Could not retrieve DVS")
-				return err
+				collector = property.DefaultCollector(client.Client)
+				dvs, err := getDVSByUUID(client, backingInfo.Port.SwitchUuid)
+				if err != nil {
+					log.Printf("[ERROR] Could not retrieve DVS")
+					return err
 
-			}
-			if err := collector.RetrieveOne(context.TODO(), dvs.Reference(), []string{"name", "portgroup"}, &dvsobj); err != nil {
-				log.Printf("[ERROR] Could not retrieve DVS")
-				return err
-			}
-			var netlabel string
-			netlabel = dirname(removefirstpartsofpath(dvs.InventoryPath))
-			for _, p := range dvsobj.Portgroup {
-				pg := mo.DistributedVirtualPortgroup{}
-				if err := collector.RetrieveOne(context.TODO(), p, []string{"name", "key"}, &pg); err != nil {
-					log.Printf("[ERROR] Could not retrieve Portgroup")
+				}
+				if err := collector.RetrieveOne(context.TODO(), dvs.Reference(), []string{"name", "portgroup"}, &dvsobj); err != nil {
+					log.Printf("[ERROR] Could not retrieve DVS")
 					return err
 				}
-				if pg.Key == backingInfo.Port.PortgroupKey {
-					netlabel += "/" + pg.Name
-					networkInterface["label"] = netlabel
-					break
+				var netlabel string
+				netlabel = dirname(removefirstpartsofpath(dvs.InventoryPath))
+				for _, p := range dvsobj.Portgroup {
+					pg := mo.DistributedVirtualPortgroup{}
+					if err := collector.RetrieveOne(context.TODO(), p, []string{"name", "key"}, &pg); err != nil {
+						log.Printf("[ERROR] Could not retrieve Portgroup")
+						return err
+					}
+					if pg.Key == backingInfo.Port.PortgroupKey {
+						netlabel += "/" + pg.Name
+						networkInterface["label"] = netlabel
+						break
+					}
 				}
+				networkInterfaces = append(networkInterfaces, networkInterface)
 			}
-			networkInterfaces = append(networkInterfaces, networkInterface)
 		}
 	}
 	// end rewrite
