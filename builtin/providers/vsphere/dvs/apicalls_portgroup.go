@@ -144,6 +144,28 @@ func (p *dvs_port_group) createPortgroup(c *govmomi.Client) error {
 	return nil
 }
 
+func (p *dvs_port_group) updatePortgroup(c *govmomi.Client) error {
+	updateSpec := p.makeDVPGConfigSpec()
+	vmomi, err := p.getVmomiObject(c)
+	if err != nil {
+		return err
+	}
+	mo, err := p.getProperties(c)
+	if err != nil {
+		return err
+	}
+	updateSpec.ConfigVersion = mo.Config.ConfigVersion
+
+	task, err := updateDVPortgroup(c, vmomi, updateSpec)
+
+	_, err = task.WaitForResult(context.TODO(), nil)
+	if err != nil {
+		return fmt.Errorf("Could not update the DVPG: %+v", err)
+	}
+	return nil
+
+}
+
 func (p *dvs_port_group) deletePortgroup(c *govmomi.Client) error {
 	return p.Destroy(c)
 }
@@ -165,6 +187,15 @@ func (p *dvs_port_group) getProperties(c *govmomi.Client) (*mo.DistributedVirtua
 		dvspgobj.Reference(),
 		[]string{"config", "key", "portKeys"},
 		&dvspgMo)
+}
+
+func (p *dvs_port_group) getVmomiObject(c *govmomi.Client) (*object.DistributedVirtualPortgroup, error) {
+	switchID, err := parseDVSID(p.switchId)
+	if err != nil {
+		return nil, err
+	}
+	dvpg, err := p.getVmomiDVPG(c, switchID.datacenter, switchID.path, p.name)
+	return dvpg, err
 }
 
 func (p *dvs_port_group) Destroy(c *govmomi.Client) error {

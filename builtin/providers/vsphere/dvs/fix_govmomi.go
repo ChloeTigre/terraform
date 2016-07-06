@@ -24,4 +24,16 @@ func createDVPortgroup(c *govmomi.Client, dvsRef object.NetworkReference, spec t
 	return object.NewTask(c.Client, res.Returnval), nil
 }
 
+func updateDVPortgroup(c *govmomi.Client, dvpgRef object.NetworkReference, spec types.DVPortgroupConfigSpec) (*object.Task, error) {
+	req := types.ReconfigureDVPortgroup_Task{
+		Spec: spec,
+		This: dvpgRef.Reference(),
+	}
+	res, err := methods.ReconfigureDVPortgroup_Task(context.TODO(), c.Client, &req)
+	if err != nil {
+		return nil, err
+	}
+	return object.NewTask(c.Client, res.Returnval), nil
+}
+
 /* end of what should be contributed to govmomi */

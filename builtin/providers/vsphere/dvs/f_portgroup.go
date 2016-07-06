@@ -2,9 +2,10 @@ package dvs
 
 import (
 	"fmt"
-	"github.com/hashicorp/terraform/helper/schema"
 	"log"
 	"strconv"
+
+	"github.com/hashicorp/terraform/helper/schema"
 )
 
 // name format for DVPG: datacenter, switch name, name
@@ -85,7 +86,29 @@ func resourceVSphereDVPGUpdate(d *schema.ResourceData, meta interface{}) error {
 			return err
 		}
 	*/
+	var errs []error
+	item := dvs_port_group{}
+	client, err := getGovmomiClient(meta)
+	resourceID, err := parseDVPGID(d.Id())
+	if err != nil {
+		errs = append(errs, err)
+	}
+	err = parseDVPG(d, &item)
+	if err != nil {
+		errs = append(errs, err)
+	}
+	err = item.loadDVPG(client, resourceID.datacenter, resourceID.switchName, resourceID.name, &item)
+	if err != nil {
+		errs = append(errs, err)
+	}
+	if d.HasChange("default_vlan") || d.HasChange("vlan_range") {
+		item.updatePortgroup(client)
+	}
 	log.Printf("[ERROR] resourceVSphereDVPGUpdate::Not implemented yet")
+	if len(errs) > 0 {
+		return fmt.Errorf("resourceVSphereDVPGUpdate:: Errors! %+v", errs)
+	}
+	// now we shall update the State
 	return nil
 }
 
