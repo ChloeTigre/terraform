@@ -109,7 +109,7 @@ func resourceVSphereDVPGUpdate(d *schema.ResourceData, meta interface{}) error {
 		return fmt.Errorf("resourceVSphereDVPGUpdate:: Errors! %+v", errs)
 	}
 	// now we shall update the State
-	return nil
+	return resourceVSphereDVPGRead(d, meta)
 }
 
 func resourceVSphereDVPGDelete(d *schema.ResourceData, meta interface{}) error {
