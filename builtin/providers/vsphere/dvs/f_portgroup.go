@@ -101,10 +101,18 @@ func resourceVSphereDVPGUpdate(d *schema.ResourceData, meta interface{}) error {
 	if err != nil {
 		errs = append(errs, err)
 	}
-	if d.HasChange("default_vlan") || d.HasChange("vlan_range") {
+	updatableFields := []string{"default_vlan", "vlan_range", "description",
+		"auto_expand", "num_ports", "port_name_format", "policy"}
+	hasChange := false
+	for _, u := range updatableFields {
+		if d.HasChange(u) {
+			hasChange = true
+			break
+		}
+	}
+	if hasChange {
 		item.updatePortgroup(client)
 	}
-	log.Printf("[ERROR] resourceVSphereDVPGUpdate::Not implemented yet")
 	if len(errs) > 0 {
 		return fmt.Errorf("resourceVSphereDVPGUpdate:: Errors! %+v", errs)
 	}
