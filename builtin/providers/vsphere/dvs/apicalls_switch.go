@@ -18,24 +18,27 @@ import (
 
 func (d *dvs) makeDVSCreateSpec() types.DVSCreateSpec {
 	return types.DVSCreateSpec{
-		ConfigSpec: &types.DVSConfigSpec{
-			Contact: &types.DVSContactInfo{
-				Contact: d.contact.infos,
-				Name:    d.contact.name,
-			},
-			ExtensionKey:       d.extensionKey,
-			Description:        d.description,
-			Name:               d.name,
-			NumStandalonePorts: int32(d.numStandalonePorts),
-			Policy: &types.DVSPolicy{
-				AutoPreInstallAllowed: &d.switchUsagePolicy.autoPreinstallAllowed,
-				AutoUpgradeAllowed:    &d.switchUsagePolicy.autoUpgradeAllowed,
-				PartialUpgradeAllowed: &d.switchUsagePolicy.partialUpgradeAllowed,
-			},
-			SwitchIpAddress: d.switchIPAddress,
-		},
+		ConfigSpec: d.makeDVSConfigSpec(),
 	}
+}
 
+func (d *dvs) makeDVSConfigSpec() *types.DVSConfigSpec {
+	return &types.DVSConfigSpec{
+		Contact: &types.DVSContactInfo{
+			Contact: d.contact.infos,
+			Name:    d.contact.name,
+		},
+		ExtensionKey:       d.extensionKey,
+		Description:        d.description,
+		Name:               d.name,
+		NumStandalonePorts: int32(d.numStandalonePorts),
+		Policy: &types.DVSPolicy{
+			AutoPreInstallAllowed: &d.switchUsagePolicy.autoPreinstallAllowed,
+			AutoUpgradeAllowed:    &d.switchUsagePolicy.autoUpgradeAllowed,
+			PartialUpgradeAllowed: &d.switchUsagePolicy.partialUpgradeAllowed,
+		},
+		SwitchIpAddress: d.switchIPAddress,
+	}
 }
 
 func (d *dvs) getDCAndFolders(c *govmomi.Client) (*object.Datacenter, *object.DatacenterFolders, error) {
@@ -194,6 +197,16 @@ func (d *dvs) getDVSHostMembers(c *govmomi.Client) (out map[string]*dvs_map_host
 		out[mapObj.hostName] = mapObj
 	}
 	return
+}
+
+func (d *dvs) updateDVS(c *govmomi.Client) error {
+	updateSpec := d.makeDVSConfigSpec()
+	dvsObj, err := d.getDVS(c, d.getFullName())
+	if err != nil {
+		return nil
+	}
+	dvsObj.Reconfigure(context.TODO(), updateSpec)
+	return nil
 }
 
 func (d *dvs) getProperties(c *govmomi.Client) (out *mo.VmwareDistributedVirtualSwitch, err error) {

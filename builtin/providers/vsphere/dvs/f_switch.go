@@ -77,8 +77,29 @@ func resourceVSphereDVSUpdate(d *schema.ResourceData, meta interface{}) error {
 
 	// detect the different changes in the object and perform needed updates
 	*/
+	var errs []error
+	client, err := getGovmomiClient(meta)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	// load the state from vSphere and provide the hydrated object.
+	resourceID, err := parseDVSID(d.Id())
+	if err != nil {
+		errs = append(errs, fmt.Errorf("Cannot parse DVSID… %+v", err))
+	}
+	dvsObject := dvs{}
+	err = loadDVS(client, resourceID.datacenter, resourceID.path, &dvsObject)
+	if err != nil {
+		errs = append(errs, fmt.Errorf("Cannot read DVS %+v: %+v", resourceID, err))
+	}
+	if len(errs) > 0 { // we cannot load the DVS for a reason so
+		log.Printf("[ERROR] Cannot load DVS %+v", resourceID)
+		return errs[0]
+	}
+	dvsObject.updateDVS(client)
 	log.Printf("[ERROR] resourceVSphereDVSUpdate::Not implemented yet")
-	return nil
+	return resourceVSphereDVSRead(d, meta)
 }
 
 func resourceVSphereDVSDelete(d *schema.ResourceData, meta interface{}) error {
