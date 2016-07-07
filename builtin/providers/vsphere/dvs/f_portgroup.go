@@ -246,15 +246,15 @@ func unparseDVPG(d *schema.ResourceData, in *dvs_port_group) error {
 	vlans := []map[string]interface{}{}
 	for _, numPair := range in.vlanRanges {
 		vlans = append(vlans, map[string]interface{}{
-			"start": fmt.Sprintf("%d", numPair.start),
-			"end":   fmt.Sprintf("%d", numPair.end),
+			"start": numPair.start,
+			"end":   numPair.end,
 		})
 	}
 	fieldsMap["vlan_range"] = vlans
 	// set values
 	for fieldName, fieldValue := range fieldsMap {
 		if err := d.Set(fieldName, fieldValue); err != nil {
-			errs = append(errs, fmt.Errorf("%s invalid: %s", fieldName, fieldValue))
+			errs = append(errs, fmt.Errorf("%s invalid: %s: %+v", fieldName, fieldValue, err))
 		}
 	}
 

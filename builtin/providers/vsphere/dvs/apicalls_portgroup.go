@@ -72,6 +72,25 @@ func (p *dvs_port_group) loadDVPG(client *govmomi.Client, datacenter, switchName
 	out.policy.portConfigResetDisconnect = policy.PortConfigResetAtDisconnect
 	out.portNameFormat = pgmoObj.Config.PortNameFormat
 	out.switchId = dvsObj.getID()
+	vlans := pgmoObj.Config.DefaultPortConfig.(*types.VMwareDVSPortSetting).Vlan
+
+	switch vlans.(type) {
+	case *types.VmwareDistributedVirtualSwitchPvlanSpec:
+		v := vlans.(*types.VmwareDistributedVirtualSwitchPvlanSpec)
+		out.defaultVLAN = int(v.PvlanId)
+	case *types.VmwareDistributedVirtualSwitchTrunkVlanSpec:
+		v := vlans.(*types.VmwareDistributedVirtualSwitchTrunkVlanSpec)
+		for _, r := range v.VlanId {
+			out.vlanRanges = append(out.vlanRanges, dvs_port_range{
+				start: int(r.Start),
+				end:   int(r.End),
+			})
+		}
+	case *types.VmwareDistributedVirtualSwitchVlanIdSpec:
+		v := vlans.(*types.VmwareDistributedVirtualSwitchVlanIdSpec)
+		out.defaultVLAN = int(v.VlanId)
+
+	}
 	return nil
 }
 
