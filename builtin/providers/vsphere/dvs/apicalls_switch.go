@@ -201,9 +201,14 @@ func (d *dvs) getDVSHostMembers(c *govmomi.Client) (out map[string]*dvs_map_host
 
 func (d *dvs) updateDVS(c *govmomi.Client) error {
 	updateSpec := d.makeDVSConfigSpec()
+	props, err := d.getProperties(c)
+	if err != nil {
+		return fmt.Errorf("updateDVS::Could not get DVS properties")
+	}
+	updateSpec.ConfigVersion = props.Config.GetDVSConfigInfo().ConfigVersion
 	dvsObj, err := d.getDVS(c, d.getFullName())
 	if err != nil {
-		return nil
+		return fmt.Errorf("updateDVS::Could not updateDVS")
 	}
 	dvsObj.Reconfigure(context.TODO(), updateSpec)
 	return nil

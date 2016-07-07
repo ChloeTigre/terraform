@@ -77,28 +77,27 @@ func resourceVSphereDVSUpdate(d *schema.ResourceData, meta interface{}) error {
 
 	// detect the different changes in the object and perform needed updates
 	*/
-	var errs []error
 	client, err := getGovmomiClient(meta)
 	if err != nil {
-		errs = append(errs, err)
-	}
-
-	// load the state from vSphere and provide the hydrated object.
-	resourceID, err := parseDVSID(d.Id())
-	if err != nil {
-		errs = append(errs, fmt.Errorf("Cannot parse DVSID… %+v", err))
+		return err
 	}
 	dvsObject := dvs{}
-	err = loadDVS(client, resourceID.datacenter, resourceID.path, &dvsObject)
+	err = parseDVS(d, &dvsObject)
 	if err != nil {
-		errs = append(errs, fmt.Errorf("Cannot read DVS %+v: %+v", resourceID, err))
+		return fmt.Errorf("Cannot parse DVS")
 	}
-	if len(errs) > 0 { // we cannot load the DVS for a reason so
-		log.Printf("[ERROR] Cannot load DVS %+v", resourceID)
-		return errs[0]
+	hasChanges := false
+	updatableFields := []string{"datacenter", "extension_key", "description",
+		"switch_ip_address", "num_standalone_ports", "contact", "switch_usage_policy"}
+	for _, f := range updatableFields {
+		if d.HasChange(f) {
+			hasChanges = true
+			break
+		}
 	}
-	dvsObject.updateDVS(client)
-	log.Printf("[ERROR] resourceVSphereDVSUpdate::Not implemented yet")
+	if hasChanges {
+		dvsObject.updateDVS(client)
+	}
 	return resourceVSphereDVSRead(d, meta)
 }
 
