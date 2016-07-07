@@ -86,20 +86,14 @@ func resourceVSphereDVPGUpdate(d *schema.ResourceData, meta interface{}) error {
 			return err
 		}
 	*/
-	var errs []error
 	item := dvs_port_group{}
 	client, err := getGovmomiClient(meta)
-	resourceID, err := parseDVPGID(d.Id())
 	if err != nil {
-		errs = append(errs, err)
+		return err
 	}
 	err = parseDVPG(d, &item)
 	if err != nil {
-		errs = append(errs, err)
-	}
-	err = item.loadDVPG(client, resourceID.datacenter, resourceID.switchName, resourceID.name, &item)
-	if err != nil {
-		errs = append(errs, err)
+		return err
 	}
 	updatableFields := []string{"default_vlan", "vlan_range", "description",
 		"auto_expand", "num_ports", "port_name_format", "policy"}
@@ -112,9 +106,6 @@ func resourceVSphereDVPGUpdate(d *schema.ResourceData, meta interface{}) error {
 	}
 	if hasChange {
 		item.updatePortgroup(client)
-	}
-	if len(errs) > 0 {
-		return fmt.Errorf("resourceVSphereDVPGUpdate:: Errors! %+v", errs)
 	}
 	// now we shall update the State
 	return resourceVSphereDVPGRead(d, meta)
