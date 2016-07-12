@@ -115,23 +115,25 @@ func vmPath(folder string, name string) string {
 	return path + name
 }
 
-func buildNetworkInterfacesStruct(in []interface{}) []networkInterface {
+func buildNetworkInterfacesStruct(in []interface{}, gateway string) ([]networkInterface, error) {
 	networks := make([]networkInterface, len(in))
 	for _, v := range in {
-		networks = append(networks, buildNetworkInterfaceStruct(v.(map[string]interface{})))
+		network, err := buildNetworkInterfaceStruct(v.(map[string]interface{}), gateway)
+		if err != nil {
+			return nil, err
+		}
+		networks = append(networks, network)
 	}
-	return networks
+	return networks, nil
 }
 
-func buildNetworkInterfaceStruct(network map[string]interface{}) networkInterface {
+func buildNetworkInterfaceStruct(network map[string]interface{}, gateway string) (networkInterface, error) {
 	snetwork := networkInterface{}
 	snetwork.label = network["label"].(string)
 	if v, ok := network["ip_address"].(string); ok && v != "" {
 		snetwork.ipv4Address = v
 	}
-	if v, ok := d.GetOk("gateway"); ok {
-		snetwork.ipv4Gateway = v.(string)
-	}
+	snetwork.ipv4Gateway = gateway
 	if v, ok := network["subnet_mask"].(string); ok && v != "" {
 		ip := net.ParseIP(v).To4()
 		if ip != nil {
@@ -139,7 +141,7 @@ func buildNetworkInterfaceStruct(network map[string]interface{}) networkInterfac
 			pl, _ := mask.Size()
 			snetwork.ipv4PrefixLength = pl
 		} else {
-			return fmt.Errorf("subnet_mask parameter is invalid.")
+			return snetwork, fmt.Errorf("subnet_mask parameter is invalid.")
 		}
 	}
 	if v, ok := network["ipv4_address"].(string); ok && v != "" {
@@ -166,7 +168,7 @@ func buildNetworkInterfaceStruct(network map[string]interface{}) networkInterfac
     if v, ok := network["adapter_type"].(string); ok && v != "" {
         snetwork.adapterType = v
     }
-	return snetwork
+	return snetwork, nil
 }
 
 func resourceVSphereVirtualMachine() *schema.Resource {
@@ -663,9 +665,16 @@ func resourceVSphereVirtualMachineUpdate(d *schema.ResourceData, meta interface{
 		newNetSet := newNet.(*schema.Set)
 		removedNet := oldNetSet.Difference(newNetSet)
 		addedNet := newNetSet.Difference(oldNetSet)
+		var gateway string
+		if gwRaw, ok := d.GetOk("gateway"); ok {
+			gateway = gwRaw.(string)
+		}
 		for _, netRaw := range removedNet.List() {
 			if net, ok := netRaw.(map[string]interface{}); ok {
-				network := buildNetworkInterfaceStruct(net)
+				network, err := buildNetworkInterfaceStruct(net, gateway)
+				if err != nil {
+					return err
+				}
 				networkDeviceType := "e1000"
 				nd, _ := buildNetworkDeviceRemoveSpec(finder, network.label, networkDeviceType, network.macAddress)
 				vm.RemoveDevice(context.TODO(), true, nd.Device)
@@ -673,7 +682,10 @@ func resourceVSphereVirtualMachineUpdate(d *schema.ResourceData, meta interface{
 		}
 		for _, netRaw := range addedNet.List() {
 			if net, ok := netRaw.(map[string]interface{}); ok {
-				network := buildNetworkInterfaceStruct(net)
+				network, err := buildNetworkInterfaceStruct(net, gateway)
+				if err != nil {
+					return err
+				}
 				networkDeviceType := "e1000"
 				nd, _ := buildNetworkDevice(finder, network.label, networkDeviceType, network.macAddress)
 				vm.AddDevice(context.TODO(), nd.Device)
@@ -808,7 +820,14 @@ func resourceVSphereVirtualMachineCreate(d *schema.ResourceData, meta interface{
 	}
 
 	if vL, ok := d.GetOk("network_interface"); ok {
-		networks := buildNetworkInterfacesStruct(vL.([]interface{}))
+		var gateway string
+		if gatewayRaw, ok := d.GetOk("gateway"); ok {
+			gateway = gatewayRaw.(string)
+		}
+		networks, err := buildNetworkInterfacesStruct(vL.([]interface{}), gateway)
+		if err != nil {
+			return err
+		}
 		vm.networkInterfaces = networks
 		log.Printf("[DEBUG] network_interface init: %v", networks)
 	}
