@@ -115,6 +115,60 @@ func vmPath(folder string, name string) string {
 	return path + name
 }
 
+func buildNetworkInterfacesStruct(in []interface{}) []networkInterface {
+	networks := make([]networkInterface, len(in))
+	for _, v := range in {
+		networks = append(networks, buildNetworkInterfaceStruct(v.(map[string]interface{})))
+	}
+	return networks
+}
+
+func buildNetworkInterfaceStruct(network map[string]interface{}) networkInterface {
+	snetwork := networkInterface{}
+	snetwork.label = network["label"].(string)
+	if v, ok := network["ip_address"].(string); ok && v != "" {
+		snetwork.ipv4Address = v
+	}
+	if v, ok := d.GetOk("gateway"); ok {
+		snetwork.ipv4Gateway = v.(string)
+	}
+	if v, ok := network["subnet_mask"].(string); ok && v != "" {
+		ip := net.ParseIP(v).To4()
+		if ip != nil {
+			mask := net.IPv4Mask(ip[0], ip[1], ip[2], ip[3])
+			pl, _ := mask.Size()
+			snetwork.ipv4PrefixLength = pl
+		} else {
+			return fmt.Errorf("subnet_mask parameter is invalid.")
+		}
+	}
+	if v, ok := network["ipv4_address"].(string); ok && v != "" {
+		snetwork.ipv4Address = v
+	}
+	if v, ok := network["ipv4_prefix_length"].(int); ok && v != 0 {
+		snetwork.ipv4PrefixLength = v
+	}
+	if v, ok := network["ipv4_gateway"].(string); ok && v != "" {
+		snetwork.ipv4Gateway = v
+	}
+	if v, ok := network["ipv6_address"].(string); ok && v != "" {
+		snetwork.ipv6Address = v
+	}
+	if v, ok := network["ipv6_prefix_length"].(int); ok && v != 0 {
+		snetwork.ipv6PrefixLength = v
+	}
+	if v, ok := network["ipv6_gateway"].(string); ok && v != "" {
+		snetwork.ipv6Gateway = v
+	}
+	if v, ok := network["mac_address"].(string); ok && v != "" {
+		snetwork.macAddress = v
+	}
+    if v, ok := network["adapter_type"].(string); ok && v != "" {
+        snetwork.adapterType = v
+    }
+	return snetwork
+}
+
 func resourceVSphereVirtualMachine() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceVSphereVirtualMachineCreate,
@@ -600,6 +654,32 @@ func resourceVSphereVirtualMachineUpdate(d *schema.ResourceData, meta interface{
 		}
 	}
 
+	// update network interfaces
+	if d.HasChange("network_interface") {
+		hasChanges = true
+		rebootRequired = true
+		oldNet, newNet := d.GetChange("network_interface")
+		oldNetSet := oldNet.(*schema.Set)
+		newNetSet := newNet.(*schema.Set)
+		removedNet := oldNetSet.Difference(newNetSet)
+		addedNet := newNetSet.Difference(oldNetSet)
+		for _, netRaw := range removedNet.List() {
+			if net, ok := netRaw.(map[string]interface{}); ok {
+				network := buildNetworkInterfaceStruct(net)
+				networkDeviceType := "e1000"
+				nd, _ := buildNetworkDeviceRemoveSpec(finder, network.label, networkDeviceType, network.macAddress)
+				vm.RemoveDevice(context.TODO(), true, nd.Device)
+			}
+		}
+		for _, netRaw := range addedNet.List() {
+			if net, ok := netRaw.(map[string]interface{}); ok {
+				network := buildNetworkInterfaceStruct(net)
+				networkDeviceType := "e1000"
+				nd, _ := buildNetworkDevice(finder, network.label, networkDeviceType, network.macAddress)
+				vm.AddDevice(context.TODO(), nd.Device)
+			}
+		}
+	}
 	// do nothing if there are no changes
 	if !hasChanges {
 		return nil
@@ -728,51 +808,7 @@ func resourceVSphereVirtualMachineCreate(d *schema.ResourceData, meta interface{
 	}
 
 	if vL, ok := d.GetOk("network_interface"); ok {
-		networks := make([]networkInterface, len(vL.([]interface{})))
-		for i, v := range vL.([]interface{}) {
-			network := v.(map[string]interface{})
-			networks[i].label = network["label"].(string)
-			if v, ok := network["ip_address"].(string); ok && v != "" {
-				networks[i].ipv4Address = v
-			}
-			if v, ok := d.GetOk("gateway"); ok {
-				networks[i].ipv4Gateway = v.(string)
-			}
-			if v, ok := network["subnet_mask"].(string); ok && v != "" {
-				ip := net.ParseIP(v).To4()
-				if ip != nil {
-					mask := net.IPv4Mask(ip[0], ip[1], ip[2], ip[3])
-					pl, _ := mask.Size()
-					networks[i].ipv4PrefixLength = pl
-				} else {
-					return fmt.Errorf("subnet_mask parameter is invalid.")
-				}
-			}
-			if v, ok := network["ipv4_address"].(string); ok && v != "" {
-				networks[i].ipv4Address = v
-			}
-			if v, ok := network["ipv4_prefix_length"].(int); ok && v != 0 {
-				networks[i].ipv4PrefixLength = v
-			}
-			if v, ok := network["ipv4_gateway"].(string); ok && v != "" {
-				networks[i].ipv4Gateway = v
-			}
-			if v, ok := network["ipv6_address"].(string); ok && v != "" {
-				networks[i].ipv6Address = v
-			}
-			if v, ok := network["ipv6_prefix_length"].(int); ok && v != 0 {
-				networks[i].ipv6PrefixLength = v
-			}
-			if v, ok := network["ipv6_gateway"].(string); ok && v != "" {
-				networks[i].ipv6Gateway = v
-			}
-			if v, ok := network["mac_address"].(string); ok && v != "" {
-				networks[i].macAddress = v
-			}
-			if v, ok := network["adapter_type"].(string); ok && v != "" {
-				networks[i].adapterType = v
-			}
-		}
+		networks := buildNetworkInterfacesStruct(vL.([]interface{}))
 		vm.networkInterfaces = networks
 		log.Printf("[DEBUG] network_interface init: %v", networks)
 	}
@@ -1366,6 +1402,16 @@ func addCdrom(vm *object.VirtualMachine, datastore, path string) error {
 	return vm.AddDevice(context.TODO(), c)
 }
 
+// buildNetworkDeviceRemoveSpec builds a VirtualDeviceConfigSpec to remove a NIC
+func buildNetworkDeviceRemoveSpec(f *find.Finder, label, adapterType string, macAddress string) (*types.VirtualDeviceConfigSpec, error) {
+	spec, err := buildNetworkDevice(f, label, adapterType, macAddress)
+	if spec == nil {
+		return nil, err
+	}
+	spec.Operation = types.VirtualDeviceConfigSpecOperationRemove
+	return spec, err
+}
+
 // buildNetworkDevice builds VirtualDeviceConfigSpec for Network Device.
 func buildNetworkDevice(f *find.Finder, label, adapterType string, macAddress string) (*types.VirtualDeviceConfigSpec, error) {
 	network, err := f.Network(context.TODO(), "*"+label)
@@ -1404,6 +1450,7 @@ func buildNetworkDevice(f *find.Finder, label, adapterType string, macAddress st
 	} else if adapterType == "e1000" {
 		return &types.VirtualDeviceConfigSpec{
 			Operation: types.VirtualDeviceConfigSpecOperationAdd,
+			//Operation: types.VirtualDeviceConfigSpecOperationEdit
 			Device: &types.VirtualE1000{
 				VirtualEthernetCard: types.VirtualEthernetCard{
 					VirtualDevice: types.VirtualDevice{
