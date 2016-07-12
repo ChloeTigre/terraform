@@ -1072,10 +1072,10 @@ func resourceVSphereVirtualMachineRead(d *schema.ResourceData, meta interface{})
 		for _, d := range mvm.Config.Hardware.Device {
 			switch d.(type) {
 			case (types.BaseVirtualEthernetCard):
+
 				log.Printf("Got a Veth")
 				a, _ := d.(types.BaseVirtualEthernetCard)
 				v := a.GetVirtualEthernetCard()
-
 				networkInterface := make(map[string]interface{})
 				networkInterface["mac_address"] = v.MacAddress
 
@@ -1116,6 +1116,29 @@ func resourceVSphereVirtualMachineRead(d *schema.ResourceData, meta interface{})
 		}
 	}
 	// end rewrite
+	// this section inspects the devices and set the networkInterfaces adapter_type field
+	for _, d := range mvm.Config.Hardware.Device {
+		switch card := d.(type) {
+		case types.BaseVirtualEthernetCard:
+			var adapterType string
+			switch d.(type) {
+			case *types.VirtualVmxnet3:
+				adapterType = "vmxnet3"
+			case *types.VirtualE1000:
+				adapterType = "e1000"
+			default:
+				return fmt.Errorf("Cannot use adapter_type %T. Please report a feature request.", d)
+			}
+			log.Printf("[WARN] MAC address: %s", card.GetVirtualEthernetCard().MacAddress)
+			for _, n := range networkInterfaces {
+				log.Printf("[WARN] %T %#v ? %s", n, n, card.GetVirtualEthernetCard().MacAddress)
+				if strings.ToUpper(n["mac_address"].(string)) == strings.ToUpper(card.GetVirtualEthernetCard().MacAddress) {
+					n["adapter_type"] = adapterType
+					break
+				}
+			}
+		}
+	}
 	log.Printf("[DEBUG] networkInterfaces: %#v", networkInterfaces)
 	err = d.Set("network_interface", networkInterfaces)
 	if err != nil {
