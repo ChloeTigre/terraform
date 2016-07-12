@@ -46,19 +46,27 @@ func resourceVSphereDVSSchema() map[string]*schema.Schema {
 		"switch_usage_policy": &schema.Schema{
 			Type:     schema.TypeMap,
 			Optional: true,
+			Default: map[string]bool{
+				"auto_preinstall_allowed": false,
+				"auto_upgrade_allowed":    false,
+				"partial_upgrade_allowed": false,
+			},
 			Elem: &schema.Resource{
 				Schema: map[string]*schema.Schema{
 					"auto_preinstall_allowed": &schema.Schema{
 						Type:     schema.TypeBool,
 						Optional: true,
+						Default:  false,
 					},
 					"auto_upgrade_allowed": &schema.Schema{
 						Type:     schema.TypeBool,
 						Optional: true,
+						Default:  false,
 					},
 					"partial_upgrade_allowed": &schema.Schema{
 						Type:     schema.TypeBool,
 						Optional: true,
+						Default:  false,
 					},
 				},
 			},
@@ -145,30 +153,37 @@ func resourceVSphereDVPGSchema() map[string]*schema.Schema {
 					"allow_block_override": &schema.Schema{
 						Type:     schema.TypeBool,
 						Optional: true,
+						Default:  false,
 					},
 					"allow_live_port_moving": &schema.Schema{
 						Type:     schema.TypeBool,
 						Optional: true,
+						Default:  false,
 					},
 					"allov_network_resources_pool_override": &schema.Schema{
 						Type:     schema.TypeBool,
 						Optional: true,
+						Default:  false,
 					},
 					"port_config_reset_disconnect": &schema.Schema{
 						Type:     schema.TypeBool,
 						Optional: true,
+						Default:  true,
 					},
 					"allow_shaping_override": &schema.Schema{
 						Type:     schema.TypeBool,
 						Optional: true,
+						Default:  false,
 					},
 					"allow_traffic_filter_override": &schema.Schema{
 						Type:     schema.TypeBool,
 						Optional: true,
+						Default:  false,
 					},
 					"allow_vendor_config_override": &schema.Schema{
 						Type:     schema.TypeBool,
 						Optional: true,
+						Default:  false,
 					},
 				},
 			},
