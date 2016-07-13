@@ -352,15 +352,15 @@ func resourceVSphereVirtualMachine() *schema.Resource {
 			},
 
 			"network_interface": &schema.Schema{
-				Type:     schema.TypeList,
+				Type:     schema.TypeSet,
 				Required: true,
-				ForceNew: true,
+				// ForceNew: false,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"label": &schema.Schema{
 							Type:     schema.TypeString,
 							Required: true,
-							ForceNew: true,
+							//ForceNew: true,
 						},
 
 						"ip_address": &schema.Schema{
@@ -416,7 +416,7 @@ func resourceVSphereVirtualMachine() *schema.Resource {
 						"adapter_type": &schema.Schema{
 							Type:     schema.TypeString,
 							Optional: true,
-							ForceNew: true,
+							// ForceNew: true,
 						},
 
 						"mac_address": &schema.Schema{
@@ -714,36 +714,44 @@ func resourceVSphereVirtualMachineUpdate(d *schema.ResourceData, meta interface{
 		oldNet, newNet := d.GetChange("network_interface")
 		oldNetSet := oldNet.(*schema.Set)
 		newNetSet := newNet.(*schema.Set)
+		log.Printf("[DEBUG] oldNetSet: [[%#v]], newNetSet: [[%#v]]", oldNetSet, newNetSet)
+
 		removedNet := oldNetSet.Difference(newNetSet)
 		addedNet := newNetSet.Difference(oldNetSet)
 		var gateway string
 		if gwRaw, ok := d.GetOk("gateway"); ok {
 			gateway = gwRaw.(string)
 		}
+		var toRemove []types.BaseVirtualDevice
+		var toAdd []types.BaseVirtualDevice
 		for _, netRaw := range removedNet.List() {
+
 			if net, ok := netRaw.(map[string]interface{}); ok {
-				log.Printf("[DEBUG] net: %#v", net)
+				log.Printf("[DEBUG] net to remove: %#v", net)
 				network, err := buildNetworkInterfaceStruct(net, gateway)
 				if err != nil {
 					return err
 				}
-				networkDeviceType := "e1000"
+				networkDeviceType := "vmxnet3"
 				nd, _ := buildNetworkDeviceRemoveSpec(finder, network.label, networkDeviceType, network.macAddress)
-				vm.RemoveDevice(context.TODO(), true, nd.Device)
+				toRemove = append(toRemove, nd.Device)
 			}
 		}
+		vm.RemoveDevice(context.TODO(), false, toRemove...)
 		for _, netRaw := range addedNet.List() {
 			if net, ok := netRaw.(map[string]interface{}); ok {
-				log.Printf("[DEBUG] net: %#v", net)
+				log.Printf("[DEBUG] net to add: %#v", net)
 				network, err := buildNetworkInterfaceStruct(net, gateway)
 				if err != nil {
 					return err
 				}
-				networkDeviceType := "e1000"
+				networkDeviceType := "vmxnet3"
 				nd, _ := buildNetworkDevice(finder, network.label, networkDeviceType, network.macAddress)
-				vm.AddDevice(context.TODO(), nd.Device)
+				toAdd = append(toAdd, nd.Device)
 			}
 		}
+		vm.AddDevice(context.TODO(), toAdd...)
+		//*/
 	}
 
 	if rebootRequired {
@@ -846,7 +854,7 @@ func resourceVSphereVirtualMachineCreate(d *schema.ResourceData, meta interface{
 			gateway = gatewayRaw.(string)
 		}
 		log.Printf("[DEBUG] net vL: %+v", vL)
-		networks, err := buildNetworkInterfacesStruct(vL.([]interface{}), gateway)
+		networks, err := buildNetworkInterfacesStruct(vL.(*schema.Set).List(), gateway)
 		if err != nil {
 			return err
 		}
@@ -995,12 +1003,14 @@ func resourceVSphereVirtualMachineRead(d *schema.ResourceData, meta interface{})
 	}
 	finder := find.NewFinder(client.Client, true)
 	finder = finder.SetDatacenter(dc)
-
 	vm, err := finder.VirtualMachine(context.TODO(), d.Id())
 	if err != nil {
 		d.SetId("")
 		return nil
 	}
+	var mvm mo.VirtualMachine
+
+	// wait for interfaces to appear
 
 	state, err := vm.PowerState(context.TODO())
 	if err != nil {
@@ -1009,13 +1019,17 @@ func resourceVSphereVirtualMachineRead(d *schema.ResourceData, meta interface{})
 
 	if state == types.VirtualMachinePowerStatePoweredOn {
 		// wait for interfaces to appear
-		_, err = vm.WaitForNetIP(context.TODO(), true)
-		if err != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		func() {
+			defer cancel()
+			_, err = vm.WaitForNetIP(ctx, true)
+		}()
+
+		if err != context.DeadlineExceeded && err != nil {
 			return err
 		}
 	}
 
-	var mvm mo.VirtualMachine
 	collector := property.DefaultCollector(client.Client)
 	if err := collector.RetrieveOne(context.TODO(), vm.Reference(), []string{"guest", "summary", "datastore", "config"}, &mvm); err != nil {
 		return err
