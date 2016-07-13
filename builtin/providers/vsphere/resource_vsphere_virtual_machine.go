@@ -672,6 +672,45 @@ func resourceVSphereVirtualMachineUpdate(d *schema.ResourceData, meta interface{
 		log.Printf("[DEBUG] has change in network_interface")
 		hasChanges = true
 		rebootRequired = true
+	}
+
+	// do nothing if there are no changes
+	if !hasChanges {
+		return nil
+	}
+
+	log.Printf("[DEBUG] virtual machine config spec: %v", configSpec)
+
+	if rebootRequired {
+		log.Printf("[INFO] Shutting down virtual machine: %s", d.Id())
+
+		task, err := vm.PowerOff(context.TODO())
+		if err != nil {
+			return err
+		}
+
+		err = task.Wait(context.TODO())
+		if err != nil {
+			return err
+		}
+	}
+
+	log.Printf("[INFO] Reconfiguring virtual machine: %s", d.Id())
+
+
+	task, err := vm.Reconfigure(context.TODO(), configSpec)
+	if err != nil {
+		log.Printf("[ERROR] %s", err)
+	}
+
+	err = task.Wait(context.TODO())
+	if err != nil {
+		log.Printf("[ERROR] %s", err)
+	}
+
+	if d.HasChange("network_interface") {
+		log.Printf("[DEBUG] has change in network_interface")
+
 		oldNet, newNet := d.GetChange("network_interface")
 		oldNetSet := oldNet.(*schema.Set)
 		newNetSet := newNet.(*schema.Set)
@@ -705,38 +744,6 @@ func resourceVSphereVirtualMachineUpdate(d *schema.ResourceData, meta interface{
 				vm.AddDevice(context.TODO(), nd.Device)
 			}
 		}
-	}
-	// do nothing if there are no changes
-	if !hasChanges {
-		return nil
-	}
-
-	log.Printf("[DEBUG] virtual machine config spec: %v", configSpec)
-
-	if rebootRequired {
-		log.Printf("[INFO] Shutting down virtual machine: %s", d.Id())
-
-		task, err := vm.PowerOff(context.TODO())
-		if err != nil {
-			return err
-		}
-
-		err = task.Wait(context.TODO())
-		if err != nil {
-			return err
-		}
-	}
-
-	log.Printf("[INFO] Reconfiguring virtual machine: %s", d.Id())
-
-	task, err := vm.Reconfigure(context.TODO(), configSpec)
-	if err != nil {
-		log.Printf("[ERROR] %s", err)
-	}
-
-	err = task.Wait(context.TODO())
-	if err != nil {
-		log.Printf("[ERROR] %s", err)
 	}
 
 	if rebootRequired {
