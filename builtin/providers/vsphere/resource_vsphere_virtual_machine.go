@@ -1125,135 +1125,188 @@ func resourceVSphereVirtualMachineRead(d *schema.ResourceData, meta interface{})
 		return fmt.Errorf("Invalid disks to set: %#v", disks)
 	}
 
-	var networkInterfaces []map[string]interface{}
-	log.Printf("[DEBUG] Network Device Count: %v", len(mvm.Guest.Net))
-	// this relies on VMware tools installed
-	for _, v := range mvm.Guest.Net {
-		if v.DeviceConfigId >= 0 {
-			log.Printf("[DEBUG] v.Network - %#v", v.Network)
-			networkInterface := make(map[string]interface{})
-			networkInterface["label"] = v.Network
-			networkInterface["mac_address"] = v.MacAddress
-			for _, ip := range v.IpConfig.IpAddress {
-				p := net.ParseIP(ip.IpAddress)
-				if p.To4() != nil {
-					log.Printf("[DEBUG] p.String - %#v", p.String())
-					log.Printf("[DEBUG] ip.PrefixLength - %#v", ip.PrefixLength)
-					networkInterface["ipv4_address"] = p.String()
-					networkInterface["ipv4_prefix_length"] = ip.PrefixLength
-				} else if p.To16() != nil {
-					log.Printf("[DEBUG] p.String - %#v", p.String())
-					log.Printf("[DEBUG] ip.PrefixLength - %#v", ip.PrefixLength)
-					networkInterface["ipv6_address"] = p.String()
-					networkInterface["ipv6_prefix_length"] = ip.PrefixLength
-				}
-				log.Printf("[DEBUG] networkInterface: %#v", networkInterface)
-			}
-			log.Printf("[DEBUG] networkInterface: %#v", networkInterface)
-			networkInterfaces = append(networkInterfaces, networkInterface)
-		}
-	}
-	if mvm.Guest.IpStack != nil {
-		for _, v := range mvm.Guest.IpStack {
-			if v.IpRouteConfig != nil && v.IpRouteConfig.IpRoute != nil {
-				for _, route := range v.IpRouteConfig.IpRoute {
-					if route.Gateway.Device != "" {
-						gatewaySetting := ""
-						if route.Network == "::" {
-							gatewaySetting = "ipv6_gateway"
-						} else if route.Network == "0.0.0.0" {
-							gatewaySetting = "ipv4_gateway"
-						}
-						if gatewaySetting != "" {
-							deviceID, err := strconv.Atoi(route.Gateway.Device)
-							if err != nil {
-								log.Printf("[WARN] error at processing %s of device id %#v: %#v", gatewaySetting, route.Gateway.Device, err)
-							} else {
-								log.Printf("[DEBUG] %s of device id %d: %s", gatewaySetting, deviceID, route.Gateway.IpAddress)
-								networkInterfaces[deviceID][gatewaySetting] = route.Gateway.IpAddress
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-	// end section that depends on VMware tools.
-	// rewrite without this dep
-	// THIS IS SLOW because vSphere does not perform well to search for a DVS' name.
-	// so run it only when needed
-	if len(networkInterfaces) == 0 {
-		for _, d := range mvm.Config.Hardware.Device {
-			switch d.(type) {
-			case (types.BaseVirtualEthernetCard):
-				log.Printf("Got a Veth")
-				a, _ := d.(types.BaseVirtualEthernetCard)
-				v := a.GetVirtualEthernetCard()
+var networkInterfaces []map[string]interface{}
+log.Printf("[DEBUG] Network Device Count: %v", len(mvm.Guest.Net))
+// this relies on VMware tools installed
+for _, v := range mvm.Guest.Net {
+    log.Printf("[DEBUG] %s\n", spew.Sdump("netIf", v))
 
-				networkInterface := make(map[string]interface{})
-				networkInterface["mac_address"] = v.MacAddress
+    if v.DeviceConfigId >= 0 {
+        log.Printf("[DEBUG] v.Network - %#v", v.Network)
+        networkInterface := make(map[string]interface{})
+        networkInterface["label"] = v.Network
+        networkInterface["mac_address"] = v.MacAddress
+        log.Printf("[DEBUG]v.IpConfig: %+v\n\n\n", v.IpConfig)
+        networkInterfaces = append(networkInterfaces, networkInterface)
+        if v.IpConfig != nil {
+            for _, ip := range v.IpConfig.IpAddress {
+                p := net.ParseIP(ip.IpAddress)
+                if p.To4() != nil {
+                    log.Printf("[DEBUG] p.String - %#v", p.String())
+                    log.Printf("[DEBUG] ip.PrefixLength - %#v", ip.PrefixLength)
+                    networkInterface["ipv4_address"] = p.String()
+                    networkInterface["ipv4_prefix_length"] = ip.PrefixLength
+                } else if p.To16() != nil {
+                    log.Printf("[DEBUG] p.String - %#v", p.String())
+                    log.Printf("[DEBUG] ip.PrefixLength - %#v", ip.PrefixLength)
+                    networkInterface["ipv6_address"] = p.String()
+                    networkInterface["ipv6_prefix_length"] = ip.PrefixLength
+                }
+                log.Printf("[DEBUG] networkInterface: %#v", networkInterface)
+            }
+        }
+        log.Printf("[DEBUG] networkInterface: %#v", networkInterface)
+        networkInterfaces = append(networkInterfaces, networkInterface)
+    }
+}
+if mvm.Guest.IpStack != nil {
+    for _, v := range mvm.Guest.IpStack {
+        if v.IpRouteConfig != nil && v.IpRouteConfig.IpRoute != nil {
+            for _, route := range v.IpRouteConfig.IpRoute {
+                if route.Gateway.Device != "" {
+                    gatewaySetting := ""
+                    if route.Network == "::" {
+                        gatewaySetting = "ipv6_gateway"
+                    } else if route.Network == "0.0.0.0" {
+                        gatewaySetting = "ipv4_gateway"
+                    }
+                    if gatewaySetting != "" {
+                        deviceID, err := strconv.Atoi(route.Gateway.Device)
+                        if err != nil {
+                            log.Printf("[WARN] error at processing %s of device id %#v: %#v", gatewaySetting, route.Gateway.Device, err)
+                        } else {
+                            log.Printf("[DEBUG] %s of device id %d: %s", gatewaySetting, deviceID, route.Gateway.IpAddress)
+                            networkInterfaces[deviceID][gatewaySetting] = route.Gateway.IpAddress
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+// end section that depends on VMware tools.
+// rewrite without this dep
+// THIS IS SLOW because vSphere does not perform well to search for a DVS' name.
+// so run it only when needed
+if len(networkInterfaces) == 0 {
+    for _, d := range mvm.Config.Hardware.Device {
+        switch d.(type) {
+        case (types.BaseVirtualEthernetCard):
+            log.Printf("Got a Veth")
+            a, _ := d.(types.BaseVirtualEthernetCard)
+            v := a.GetVirtualEthernetCard()
 
-				backingInfo, ok := v.Backing.(*types.VirtualEthernetCardDistributedVirtualPortBackingInfo)
-				if !ok {
-					log.Printf("[ERROR] Could not cast  backingInfo of NIC: %T!", v.Backing)
-					continue
-				}
-				dvsobj := mo.DistributedVirtualSwitch{}
+            networkInterface := make(map[string]interface{})
+            networkInterface["mac_address"] = v.MacAddress
 
-				collector = property.DefaultCollector(client.Client)
-				dvs, err := getDVSByUUID(client, backingInfo.Port.SwitchUuid)
-				if err != nil {
-					log.Printf("[ERROR] Could not retrieve DVS")
-					return err
+            backingInfo, ok := v.Backing.(*types.VirtualEthernetCardDistributedVirtualPortBackingInfo)
+            if !ok {
+                log.Printf("[ERROR] Could not cast  backingInfo of NIC: %T!", v.Backing)
+                continue
+            }
+            dvsobj := mo.DistributedVirtualSwitch{}
 
-				}
-				if err := collector.RetrieveOne(context.TODO(), dvs.Reference(), []string{"name", "portgroup"}, &dvsobj); err != nil {
-					log.Printf("[ERROR] Could not retrieve DVS")
-					return err
-				}
-				var netlabel string
-				netlabel = dirname(removefirstpartsofpath(dvs.InventoryPath))
-				for _, p := range dvsobj.Portgroup {
-					pg := mo.DistributedVirtualPortgroup{}
-					if err := collector.RetrieveOne(context.TODO(), p, []string{"name", "key"}, &pg); err != nil {
-						log.Printf("[ERROR] Could not retrieve Portgroup")
-						return err
-					}
-					if pg.Key == backingInfo.Port.PortgroupKey {
-						netlabel += "/" + pg.Name
-						networkInterface["label"] = netlabel
-						break
-					}
-				}
-				networkInterfaces = append(networkInterfaces, networkInterface)
-			}
-		}
-	}
-	// end rewrite
-	// this section inspects the devices and set the networkInterfaces adapter_type field
-	for _, d := range mvm.Config.Hardware.Device {
-		switch card := d.(type) {
-		case types.BaseVirtualEthernetCard:
-			var adapterType string
-			switch d.(type) {
-			case *types.VirtualVmxnet3:
-				adapterType = "vmxnet3"
-			case *types.VirtualE1000:
-				adapterType = "e1000"
-			default:
-				return fmt.Errorf("Cannot use adapter_type %T. Please report a feature request.", d)
-			}
-			log.Printf("[WARN] MAC address: %s", card.GetVirtualEthernetCard().MacAddress)
-			for _, n := range networkInterfaces {
-				log.Printf("[WARN] %T %#v ? %s", n, n, card.GetVirtualEthernetCard().MacAddress)
-				if strings.ToUpper(n["mac_address"].(string)) == strings.ToUpper(card.GetVirtualEthernetCard().MacAddress) {
-					n["adapter_type"] = adapterType
-					break
-				}
-			}
-		}
-	}
-	log.Printf("[DEBUG] networkInterfaces: %#v", networkInterfaces)
+            collector = property.DefaultCollector(client.Client)
+            dvs, err := getDVSByUUID(client, backingInfo.Port.SwitchUuid)
+            if err != nil {
+                log.Printf("[ERROR] Could not retrieve DVS")
+                return err
+
+            }
+            if err := collector.RetrieveOne(context.TODO(), dvs.Reference(), []string{"name", "portgroup"}, &dvsobj); err != nil {
+                log.Printf("[ERROR] Could not retrieve DVS")
+                return err
+            }
+            var netlabel string
+            netlabel = dirname(removefirstpartsofpath(dvs.InventoryPath))
+            for _, p := range dvsobj.Portgroup {
+                pg := mo.DistributedVirtualPortgroup{}
+                if err := collector.RetrieveOne(context.TODO(), p, []string{"name", "key"}, &pg); err != nil {
+                    log.Printf("[ERROR] Could not retrieve Portgroup")
+                    return err
+                }
+                if pg.Key == backingInfo.Port.PortgroupKey {
+                    netlabel += "/" + pg.Name
+                    networkInterface["label"] = netlabel
+                    break
+                }
+            }
+            networkInterfaces = append(networkInterfaces, networkInterface)
+        }
+    }
+}
+// end rewrite
+// this section inspects the devices and set the networkInterfaces adapter_type field
+for _, d := range mvm.Config.Hardware.Device {
+    switch card := d.(type) {
+    case types.BaseVirtualEthernetCard:
+        var adapterType string
+        switch d.(type) {
+        case *types.VirtualVmxnet3:
+            adapterType = "vmxnet3"
+        case *types.VirtualE1000:
+            adapterType = "e1000"
+        default:
+            return fmt.Errorf("Cannot use adapter_type %T. Please report a feature request.", d)
+        }
+        log.Printf("[WARN] MAC address: %s", card.GetVirtualEthernetCard().MacAddress)
+        for _, n := range networkInterfaces {
+            log.Printf("[WARN] %T %#v ? %s", n, n, card.GetVirtualEthernetCard().MacAddress)
+            if strings.ToUpper(n["mac_address"].(string)) == strings.ToUpper(card.GetVirtualEthernetCard().MacAddress) {
+                n["adapter_type"] = adapterType
+                break
+            }
+        }
+    }
+}
+
+for _, d := range mvm.Config.Hardware.Device {
+    switch d.(type) {
+    case (types.BaseVirtualEthernetCard):
+        log.Printf("Got a Veth")
+        a, _ := d.(types.BaseVirtualEthernetCard)
+        v := a.GetVirtualEthernetCard()
+
+        networkInterface := make(map[string]interface{})
+        networkInterface["mac_address"] = v.MacAddress
+
+        backingInfo, ok := v.Backing.(*types.VirtualEthernetCardDistributedVirtualPortBackingInfo)
+        if !ok {
+            log.Printf("[ERROR] Could not cast  backingInfo of NIC: %T!", v.Backing)
+            continue
+        }
+        dvsobj := mo.DistributedVirtualSwitch{}
+
+        collector = property.DefaultCollector(client.Client)
+        dvs, err := getDVSByUUID(client, backingInfo.Port.SwitchUuid)
+        if err != nil {
+            log.Printf("[ERROR] Could not retrieve DVS")
+            return err
+
+        }
+        if err := collector.RetrieveOne(context.TODO(), dvs.Reference(), []string{"name", "portgroup"}, &dvsobj); err != nil {
+            log.Printf("[ERROR] Could not retrieve DVS")
+            return err
+        }
+        var netlabel string
+        netlabel = dirname(removefirstpartsofpath(dvs.InventoryPath))
+        for _, p := range dvsobj.Portgroup {
+            pg := mo.DistributedVirtualPortgroup{}
+            if err := collector.RetrieveOne(context.TODO(), p, []string{"name", "key"}, &pg); err != nil {
+                log.Printf("[ERROR] Could not retrieve Portgroup")
+                return err
+            }
+            if pg.Key == backingInfo.Port.PortgroupKey {
+                netlabel += "/" + pg.Name
+                networkInterface["label"] = netlabel
+                break
+            }
+        }
+        networkInterfaces = append(networkInterfaces, networkInterface)
+    }
+}
+// end rewrite
+log.Printf("[DEBUG] networkInterfaces: %#v", networkInterfaces)
 	err = d.Set("network_interface", networkInterfaces)
 	if err != nil {
 		return fmt.Errorf("Invalid network interfaces to set: %#v", networkInterfaces)

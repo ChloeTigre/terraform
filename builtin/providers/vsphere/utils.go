@@ -185,6 +185,7 @@ func clearVSphereInventoryCache() {
 	os.Remove(cacheIndexFile)
 	_bmo = bmores{}
 }
+
 func removefirstpartsofpath(path string) string {
 	s := strings.Split(path, "/")
 	log.Printf("[DEBUG] split: %+v", s)
