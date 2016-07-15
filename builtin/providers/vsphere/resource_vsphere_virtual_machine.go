@@ -6,6 +6,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/vmware/govmomi"
@@ -667,11 +668,25 @@ func resourceVSphereVirtualMachineUpdate(d *schema.ResourceData, meta interface{
 		}
 	}
 
-	// update network interfaces
 	if d.HasChange("network_interface") {
-		log.Printf("[DEBUG] has change in network_interface")
-		hasChanges = true
 		rebootRequired = true
+		hasChanges = true
+		log.Printf("[DEBUG] has change in network_interface")
+
+		oldNet, newNet := d.GetChange("network_interface")
+		oldNetSet := oldNet.(*schema.Set)
+		newNetSet := newNet.(*schema.Set)
+		log.Printf("[DEBUG] oldNetSet: [[%#v]], newNetSet: [[%#v]]", oldNetSet, newNetSet)
+
+		removedNet := oldNetSet.Difference(newNetSet)
+		addedNet := newNetSet.Difference(oldNetSet)
+		var gateway string
+		if gwRaw, ok := d.GetOk("gateway"); ok {
+			gateway = gwRaw.(string)
+		}
+		if err = buildNICChangeSpec(addedNet.List(), removedNet.List(), gateway, &configSpec, finder); err != nil {
+			return err
+		}
 	}
 
 	// do nothing if there are no changes
@@ -697,7 +712,6 @@ func resourceVSphereVirtualMachineUpdate(d *schema.ResourceData, meta interface{
 
 	log.Printf("[INFO] Reconfiguring virtual machine: %s", d.Id())
 
-
 	task, err := vm.Reconfigure(context.TODO(), configSpec)
 	if err != nil {
 		log.Printf("[ERROR] %s", err)
@@ -706,52 +720,6 @@ func resourceVSphereVirtualMachineUpdate(d *schema.ResourceData, meta interface{
 	err = task.Wait(context.TODO())
 	if err != nil {
 		log.Printf("[ERROR] %s", err)
-	}
-
-	if d.HasChange("network_interface") {
-		log.Printf("[DEBUG] has change in network_interface")
-
-		oldNet, newNet := d.GetChange("network_interface")
-		oldNetSet := oldNet.(*schema.Set)
-		newNetSet := newNet.(*schema.Set)
-		log.Printf("[DEBUG] oldNetSet: [[%#v]], newNetSet: [[%#v]]", oldNetSet, newNetSet)
-
-		removedNet := oldNetSet.Difference(newNetSet)
-		addedNet := newNetSet.Difference(oldNetSet)
-		var gateway string
-		if gwRaw, ok := d.GetOk("gateway"); ok {
-			gateway = gwRaw.(string)
-		}
-		var toRemove []types.BaseVirtualDevice
-		var toAdd []types.BaseVirtualDevice
-		for _, netRaw := range removedNet.List() {
-
-			if net, ok := netRaw.(map[string]interface{}); ok {
-				log.Printf("[DEBUG] net to remove: %#v", net)
-				network, err := buildNetworkInterfaceStruct(net, gateway)
-				if err != nil {
-					return err
-				}
-				networkDeviceType := "vmxnet3"
-				nd, _ := buildNetworkDeviceRemoveSpec(finder, network.label, networkDeviceType, network.macAddress)
-				toRemove = append(toRemove, nd.Device)
-			}
-		}
-		vm.RemoveDevice(context.TODO(), false, toRemove...)
-		for _, netRaw := range addedNet.List() {
-			if net, ok := netRaw.(map[string]interface{}); ok {
-				log.Printf("[DEBUG] net to add: %#v", net)
-				network, err := buildNetworkInterfaceStruct(net, gateway)
-				if err != nil {
-					return err
-				}
-				networkDeviceType := "vmxnet3"
-				nd, _ := buildNetworkDevice(finder, network.label, networkDeviceType, network.macAddress)
-				toAdd = append(toAdd, nd.Device)
-			}
-		}
-		vm.AddDevice(context.TODO(), toAdd...)
-		//*/
 	}
 
 	if rebootRequired {
@@ -767,6 +735,43 @@ func resourceVSphereVirtualMachineUpdate(d *schema.ResourceData, meta interface{
 	}
 
 	return resourceVSphereVirtualMachineRead(d, meta)
+}
+
+// buildNICChangeSpec puts add and remove NIC in a VirtualMachineConfigSpec
+func buildNICChangeSpec(added, removed []interface{}, gateway string, config *types.VirtualMachineConfigSpec, finder *find.Finder) error {
+	for _, netRaw := range removed {
+		if netO, ok := netRaw.(map[string]interface{}); ok {
+			network, err := buildNetworkInterfaceStruct(netO, gateway)
+			if err != nil {
+				return err
+			}
+			networkDeviceType := "vmxnet3"
+			nd, err := buildNetworkDeviceRemoveSpec(finder, network.label, networkDeviceType, network.macAddress)
+			if err != nil {
+				return err
+			}
+			config.DeviceChange = append(config.DeviceChange, nd)
+		} else {
+			return fmt.Errorf("Cast error: cannot cast %T to map[string]interface{}", netRaw)
+		}
+	}
+	for _, netRaw := range added {
+		if netO, ok := netRaw.(map[string]interface{}); ok {
+			network, err := buildNetworkInterfaceStruct(netO, gateway)
+			if err != nil {
+				return err
+			}
+			networkDeviceType := "vmxnet3"
+			nd, err := buildNetworkDevice(finder, network.label, networkDeviceType, network.macAddress)
+			if err != nil {
+				return err
+			}
+			config.DeviceChange = append(config.DeviceChange, nd)
+		} else {
+			return fmt.Errorf("Cast error: cannot cast %T to map[string]interface{}", netRaw)
+		}
+	}
+	return nil
 }
 
 func resourceVSphereVirtualMachineCreate(d *schema.ResourceData, meta interface{}) error {
