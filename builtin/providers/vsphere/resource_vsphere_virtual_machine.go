@@ -745,6 +745,7 @@ func resourceVSphereVirtualMachineUpdate(d *schema.ResourceData, meta interface{
 		}
 	}
 
+	clearVSphereInventoryCache()
 	return resourceVSphereVirtualMachineRead(d, meta)
 }
 
@@ -1005,6 +1006,7 @@ func resourceVSphereVirtualMachineCreate(d *schema.ResourceData, meta interface{
 	d.SetId(vm.Path())
 	log.Printf("[INFO] Created virtual machine: %s", d.Id())
 
+	clearVSphereInventoryCache()
 	return resourceVSphereVirtualMachineRead(d, meta)
 }
 
@@ -1297,6 +1299,7 @@ func resourceVSphereVirtualMachineRead(d *schema.ResourceData, meta interface{})
 }
 
 func resourceVSphereVirtualMachineDelete(d *schema.ResourceData, meta interface{}) error {
+	clearVSphereInventoryCache()
 	client := meta.(*govmomi.Client)
 	dc, err := getDatacenter(client, d.Get("datacenter").(string))
 	if err != nil {
