@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
@@ -35,6 +36,11 @@ var DiskControllerTypes = []string{
 	"scsi-lsi-sas",
 	"ide",
 }
+
+const (
+	nicTypeE1000   string = "e1000"
+	nicTypeVmxnet3 string = "vmxnet3"
+)
 
 type networkInterface struct {
 	deviceName       string
@@ -173,9 +179,12 @@ func buildNetworkInterfaceStruct(network map[string]interface{}, gateway string)
 	if v, ok := network["mac_address"].(string); ok && v != "" {
 		snetwork.macAddress = v
 	}
-    if v, ok := network["adapter_type"].(string); ok && v != "" {
-        snetwork.adapterType = v
-    }
+	if v, ok := network["adapter_type"].(string); ok && v != "" {
+		snetwork.adapterType = v
+	} else {
+		// safe default
+		snetwork.adapterType = nicTypeE1000
+	}
 	if gateway != "" {
 		snetwork.ipv4Gateway = gateway
 	}
@@ -684,7 +693,7 @@ func resourceVSphereVirtualMachineUpdate(d *schema.ResourceData, meta interface{
 		if gwRaw, ok := d.GetOk("gateway"); ok {
 			gateway = gwRaw.(string)
 		}
-		if err = buildNICChangeSpec(addedNet.List(), removedNet.List(), gateway, &configSpec, finder); err != nil {
+		if err = buildNICChangeSpec(addedNet.List()[:], removedNet.List()[:], gateway, &configSpec, finder); err != nil {
 			return err
 		}
 	}
@@ -711,26 +720,28 @@ func resourceVSphereVirtualMachineUpdate(d *schema.ResourceData, meta interface{
 	}
 
 	log.Printf("[INFO] Reconfiguring virtual machine: %s", d.Id())
+	log.Printf("[DEBUG] configSpec: %v", spew.Sdump(configSpec))
 
-	task, err := vm.Reconfigure(context.TODO(), configSpec)
-	if err != nil {
-		log.Printf("[ERROR] %s", err)
-	}
-
-	err = task.Wait(context.TODO())
-	if err != nil {
-		log.Printf("[ERROR] %s", err)
-	}
-
-	if rebootRequired {
-		task, err = vm.PowerOn(context.TODO())
+	if false {
+		task, err := vm.Reconfigure(context.TODO(), configSpec)
 		if err != nil {
-			return err
+			log.Printf("[ERROR] %s", err)
 		}
 
 		err = task.Wait(context.TODO())
 		if err != nil {
 			log.Printf("[ERROR] %s", err)
+		}
+		if rebootRequired {
+			task, err = vm.PowerOn(context.TODO())
+			if err != nil {
+				return err
+			}
+
+			err = task.Wait(context.TODO())
+			if err != nil {
+				log.Printf("[ERROR] %s", err)
+			}
 		}
 	}
 
@@ -745,8 +756,7 @@ func buildNICChangeSpec(added, removed []interface{}, gateway string, config *ty
 			if err != nil {
 				return err
 			}
-			networkDeviceType := "vmxnet3"
-			nd, err := buildNetworkDeviceRemoveSpec(finder, network.label, networkDeviceType, network.macAddress)
+			nd, err := buildNetworkDeviceRemoveSpec(finder, network.label, network.adapterType, network.macAddress)
 			if err != nil {
 				return err
 			}
@@ -761,8 +771,7 @@ func buildNICChangeSpec(added, removed []interface{}, gateway string, config *ty
 			if err != nil {
 				return err
 			}
-			networkDeviceType := "vmxnet3"
-			nd, err := buildNetworkDevice(finder, network.label, networkDeviceType, network.macAddress)
+			nd, err := buildNetworkDevice(finder, network.label, network.adapterType, network.macAddress)
 			if err != nil {
 				return err
 			}
@@ -1113,7 +1122,9 @@ func resourceVSphereVirtualMachineRead(d *schema.ResourceData, meta interface{})
 		return fmt.Errorf("Invalid disks to set: %#v", disks)
 	}
 
-	networkInterfaces := make([]map[string]interface{}, 0)
+	var networkInterfaces []map[string]interface{}
+	log.Printf("[DEBUG] Network Device Count: %v", len(mvm.Guest.Net))
+	// this relies on VMware tools installed
 	for _, v := range mvm.Guest.Net {
 		if v.DeviceConfigId >= 0 {
 			log.Printf("[DEBUG] v.Network - %#v", v.Network)
@@ -1493,7 +1504,7 @@ func buildNetworkDevice(f *find.Finder, label, adapterType string, macAddress st
 		address_type = string(types.VirtualEthernetCardMacTypeManual)
 	}
 
-	if adapterType == "vmxnet3" {
+	if adapterType == nicTypeVmxnet3 {
 		return &types.VirtualDeviceConfigSpec{
 			Operation: types.VirtualDeviceConfigSpecOperationAdd,
 			Device: &types.VirtualVmxnet3{
@@ -1509,7 +1520,7 @@ func buildNetworkDevice(f *find.Finder, label, adapterType string, macAddress st
 				},
 			},
 		}, nil
-	} else if adapterType == "e1000" {
+	} else if adapterType == nicTypeE1000 {
 		return &types.VirtualDeviceConfigSpec{
 			Operation: types.VirtualDeviceConfigSpecOperationAdd,
 			//Operation: types.VirtualDeviceConfigSpecOperationEdit
@@ -1525,7 +1536,8 @@ func buildNetworkDevice(f *find.Finder, label, adapterType string, macAddress st
 			},
 		}, nil
 	} else {
-		return nil, fmt.Errorf("Invalid network adapter type.")
+		panic("gloups")
+		return nil, fmt.Errorf("Invalid network adapter type [%v].", adapterType)
 	}
 }
 
@@ -1846,9 +1858,9 @@ func (vm *virtualMachine) setupVirtualMachine(c *govmomi.Client) error {
 		var networkDeviceType string
 		if network.adapterType == "" {
 			if vm.template == "" {
-				networkDeviceType = "e1000"
+				networkDeviceType = nicTypeE1000
 			} else {
-				networkDeviceType = "vmxnet3"
+				networkDeviceType = nicTypeVmxnet3
 			}
 		} else {
 			networkDeviceType = network.adapterType
