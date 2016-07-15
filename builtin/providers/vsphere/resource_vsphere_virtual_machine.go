@@ -1076,10 +1076,7 @@ func resourceVSphereVirtualMachineRead(d *schema.ResourceData, meta interface{})
 	if err != nil {
 		return fmt.Errorf("Invalid network interfaces to set: %#v", networkInterfaces)
 	}
-	if len(networkInterfaces) > 0 && networkInterfaces[0]["ipv4_address"] != nil {
-		log.Printf("[DEBUG] ip address: %v", networkInterfaces[0]["ipv4_address"].(string))
 
-<<<<<<< HEAD
 	if len(networkInterfaces) > 0 {
 		if _, ok := networkInterfaces[0]["ipv4_address"]; ok {
 			log.Printf("[DEBUG] ip address: %v", networkInterfaces[0]["ipv4_address"].(string))
@@ -1088,12 +1085,6 @@ func resourceVSphereVirtualMachineRead(d *schema.ResourceData, meta interface{})
 				"host": networkInterfaces[0]["ipv4_address"].(string),
 			})
 		}
-=======
-		d.SetConnInfo(map[string]string{
-			"type": "ssh",
-			"host": networkInterfaces[0]["ipv4_address"].(string),
-		})
->>>>>>> Allow timeout when no IP will be allocated
 	}
 
 	var rootDatastore string
