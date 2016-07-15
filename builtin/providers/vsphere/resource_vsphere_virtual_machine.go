@@ -1183,10 +1183,10 @@ func resourceVSphereVirtualMachineRead(d *schema.ResourceData, meta interface{})
 		for _, d := range mvm.Config.Hardware.Device {
 			switch d.(type) {
 			case (types.BaseVirtualEthernetCard):
-
 				log.Printf("Got a Veth")
 				a, _ := d.(types.BaseVirtualEthernetCard)
 				v := a.GetVirtualEthernetCard()
+
 				networkInterface := make(map[string]interface{})
 				networkInterface["mac_address"] = v.MacAddress
 
