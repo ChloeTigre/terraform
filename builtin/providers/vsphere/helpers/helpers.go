@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
@@ -31,4 +32,19 @@ func WaitForTaskEnd(task *object.Task, message string) error {
 	}
 	return nil
 
+}
+
+// SortedStringMap outputs a map[string]interface{} sorted by key
+func SortedStringMap(in map[string]interface{}) string {
+
+	var keys []string
+	for k := range in {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var out string
+	for _, k := range keys {
+		out = fmt.Sprintf("%s%s: %+v\t", out, k, in[k])
+	}
+	return out
 }

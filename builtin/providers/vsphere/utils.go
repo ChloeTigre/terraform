@@ -9,7 +9,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
@@ -118,13 +117,10 @@ func BuildManagedObjectsIndexes(client *govmomi.Client, path string) (map[string
 		}
 		clearVSphereInventoryCache()
 		if file, err := os.Create(cacheIndexFile); err == nil {
-			log.Printf("[DEBUG] %s", spew.Sdump(json.Marshal(ret)))
-			log.Printf("[DEBUG] %s", spew.Sdump(json.Marshal(inv)))
 			b, err := json.MarshalIndent(_bmo, "", " ")
-			log.Printf("[DEBUG] : %s", spew.Sdump(b))
 			if err != nil {
 				log.Printf("[ERROR] Oops! Error in marshalling %+v", err)
-				panic("foo")
+				panic("Cannot mashall data - something very wrong is going on")
 			}
 			file.Write(b)
 			file.Close()
