@@ -553,6 +553,62 @@ func resourceVSphereVirtualMachineCreate(d *schema.ResourceData, meta interface{
 	return resourceVSphereVirtualMachineRead(d, meta)
 }
 
+func diskGetAddedRemovedChanged(oldDiskSet, newDiskSet *schema.Set) (added, removed, changed []map[string]interface{}) {
+	addedDisks := newDiskSet.Difference(oldDiskSet)
+	removedDisks := oldDiskSet.Difference(newDiskSet)
+	var addedM, removedM, changedM map[string]map[string]interface{}
+	var diskId string
+
+	for _, diskRaw := range removedDisks.List() {
+		disk, ok := diskRaw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		switch {
+		case disk["vmdk"].(string) != "":
+			diskId = disk["vmdk"].(string)
+		case disk["name"].(string) != "":
+			diskId = disk["name"].(string)
+		}
+		removedM[diskId] = disk
+
+	}
+
+	for _, diskRaw := range addedDisks.List() {
+		disk, ok := diskRaw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		var diskId string
+		switch {
+		case disk["vmdk"].(string) != "":
+			diskId = disk["vmdk"].(string)
+		case disk["name"].(string) != "":
+			diskId = disk["name"].(string)
+		}
+		addedM[diskId] = disk
+	}
+
+	for k := range addedM {
+		if _, ok := removedM[k]; ok {
+			changedM[k] = addedM[k]
+			delete(addedM, k)
+			delete(removedM, k)
+		}
+	}
+
+	for _, i := range addedM {
+		added = append(added, i)
+	}
+	for _, i := range removedM {
+		removed = append(removed, i)
+	}
+	for _, i := range changedM {
+		changed = append(changed, i)
+	}
+	return
+}
+
 // updateHandleDiskChange makes disk-related modifications to a VM.
 func updateHandleDiskChange(d *schema.ResourceData, vm *object.VirtualMachine, finder *find.Finder) error {
 	var err error
@@ -560,93 +616,87 @@ func updateHandleDiskChange(d *schema.ResourceData, vm *object.VirtualMachine, f
 	oldDiskSet := oldDisks.(*schema.Set)
 	newDiskSet := newDisks.(*schema.Set)
 
-	addedDisks := newDiskSet.Difference(oldDiskSet)
-	removedDisks := oldDiskSet.Difference(newDiskSet)
-
 	// Removed disks
-	for _, diskRaw := range removedDisks.List() {
-		if disk, ok := diskRaw.(map[string]interface{}); ok {
-			devices, err := vm.Device(context.TODO())
-			if err != nil {
-				return fmt.Errorf("[ERROR] Update Remove Disk - Could not get virtual device list: %v", err)
-			}
-			virtualDisk := devices.FindByKey(int32(disk["key"].(int)))
+	added, removed, changed := diskGetAddedRemovedChanged(oldDiskSet, newDiskSet)
+	for _, disk := range removed {
+		devices, err := vm.Device(context.TODO())
+		if err != nil {
+			return fmt.Errorf("[ERROR] Update Remove Disk - Could not get virtual device list: %v", err)
+		}
+		virtualDisk := devices.FindByKey(int32(disk["key"].(int)))
 
-			keep := false
-			if v, ok := disk["keep_on_remove"].(bool); ok {
-				keep = v
-			}
+		keep := false
+		if v, ok := disk["keep_on_remove"].(bool); ok {
+			keep = v
+		}
 
-			err = vm.RemoveDevice(context.TODO(), keep, virtualDisk)
-			if err != nil {
-				return fmt.Errorf("[ERROR] Update Remove Disk - Error removing disk: %v", err)
-			}
+		err = vm.RemoveDevice(context.TODO(), keep, virtualDisk)
+		if err != nil {
+			return fmt.Errorf("[ERROR] Update Remove Disk - Error removing disk: %v", err)
 		}
 	}
 	// Added disks
-	for _, diskRaw := range addedDisks.List() {
-		if disk, ok := diskRaw.(map[string]interface{}); ok {
-
-			var datastore *object.Datastore
-			if disk["datastore"] == "" {
-				datastore, err = finder.DefaultDatastore(context.TODO())
-				if err != nil {
-					return fmt.Errorf("[ERROR] Update Remove Disk - Error finding datastore: %v", err)
-				}
-			} else {
-				datastore, err = finder.Datastore(context.TODO(), disk["datastore"].(string))
-				if err != nil {
-					log.Printf("[ERROR] Couldn't find datastore %v.  %s", disk["datastore"].(string), err)
-					return err
-				}
-			}
-
-			var size int64
-			if disk["size"] == 0 {
-				size = 0
-			} else {
-				size = int64(disk["size"].(int))
-			}
-			iops := int64(disk["iops"].(int))
-			controller_type := controllerType(disk["controller_type"].(string))
-
-			var mo mo.VirtualMachine
-			vm.Properties(context.TODO(), vm.Reference(), []string{"summary", "config"}, &mo)
-
-			var diskPath string
-			switch {
-			case disk["vmdk"] != "":
-				diskPath = disk["vmdk"].(string)
-			case disk["name"] != "":
-				snapshotFullDir := mo.Config.Files.SnapshotDirectory
-				split := strings.Split(snapshotFullDir, " ")
-				if len(split) != 2 {
-					return fmt.Errorf("[ERROR] createVirtualMachine - failed to split snapshot directory: %v", snapshotFullDir)
-				}
-				vmWorkingPath := split[1]
-				diskPath = vmWorkingPath + disk["name"].(string)
-			default:
-				return fmt.Errorf("[ERROR] resourceVSphereVirtualMachineUpdate - Neither vmdk path nor disk name was given")
-			}
-
-			log.Printf("[INFO] Attaching disk: %v", diskPath)
-			provtype, ok := disk["type"]
-			var proviType provisioningType
-			if !ok {
-				proviType = provisioningTypeThin
-			} else {
-				proviType = provisioningType(provtype.(string))
-			}
-			err = addHardDisk(vm, size, iops,
-				proviType, datastore, diskPath, controller_type)
+	for _, disk := range added {
+		var datastore *object.Datastore
+		if disk["datastore"] == "" {
+			datastore, err = finder.DefaultDatastore(context.TODO())
 			if err != nil {
-				log.Printf("[ERROR] Add Hard Disk Failed: %v", err)
+				return fmt.Errorf("[ERROR] Update Remove Disk - Error finding datastore: %v", err)
+			}
+		} else {
+			datastore, err = finder.Datastore(context.TODO(), disk["datastore"].(string))
+			if err != nil {
+				log.Printf("[ERROR] Couldn't find datastore %v.  %s", disk["datastore"].(string), err)
 				return err
 			}
 		}
+
+		var size int64
+		if disk["size"] == 0 {
+			size = 0
+		} else {
+			size = int64(disk["size"].(int))
+		}
+		iops := int64(disk["iops"].(int))
+		controller_type := controllerType(disk["controller_type"].(string))
+
+		var mo mo.VirtualMachine
+		vm.Properties(context.TODO(), vm.Reference(), []string{"summary", "config"}, &mo)
+
+		var diskPath string
+		switch {
+		case disk["vmdk"] != "":
+			diskPath = disk["vmdk"].(string)
+		case disk["name"] != "":
+			snapshotFullDir := mo.Config.Files.SnapshotDirectory
+			split := strings.Split(snapshotFullDir, " ")
+			if len(split) != 2 {
+				return fmt.Errorf("[ERROR] createVirtualMachine - failed to split snapshot directory: %v", snapshotFullDir)
+			}
+			vmWorkingPath := split[1]
+			diskPath = vmWorkingPath + disk["name"].(string)
+		default:
+			return fmt.Errorf("[ERROR] resourceVSphereVirtualMachineUpdate - Neither vmdk path nor disk name was given")
+		}
+
+		log.Printf("[INFO] Attaching disk: %v", diskPath)
+		provtype, ok := disk["type"]
+		var proviType provisioningType
+		if !ok {
+			proviType = provisioningTypeThin
+		} else {
+			proviType = provisioningType(provtype.(string))
+		}
+		err = addHardDisk(vm, size, iops,
+			proviType, datastore, diskPath, controller_type)
 		if err != nil {
+			log.Printf("[ERROR] Add Hard Disk Failed: %v", err)
 			return err
 		}
+	}
+	for _, disk := range changed {
+		log.Printf("[ERROR] Disk changes not done yet: %#v", disk)
+
 	}
 	return nil
 }
