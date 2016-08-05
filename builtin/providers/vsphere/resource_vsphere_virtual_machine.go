@@ -558,6 +558,9 @@ func diskGetAddedRemovedChanged(oldDiskSet, newDiskSet *schema.Set) (added, remo
 	removedDisks := oldDiskSet.Difference(newDiskSet)
 	var addedM, removedM, changedM map[string]map[string]interface{}
 	var diskId string
+	addedM = make(map[string]map[string]interface{}, 0)
+	changedM = make(map[string]map[string]interface{}, 0)
+	removedM = make(map[string]map[string]interface{}, 0)
 
 	for _, diskRaw := range removedDisks.List() {
 		disk, ok := diskRaw.(map[string]interface{})
@@ -592,6 +595,7 @@ func diskGetAddedRemovedChanged(oldDiskSet, newDiskSet *schema.Set) (added, remo
 	for k := range addedM {
 		if _, ok := removedM[k]; ok {
 			changedM[k] = addedM[k]
+			changedM[k]["key"] = removedM[k]["key"]
 			delete(addedM, k)
 			delete(removedM, k)
 		}
@@ -610,7 +614,7 @@ func diskGetAddedRemovedChanged(oldDiskSet, newDiskSet *schema.Set) (added, remo
 }
 
 // updateHandleDiskChange makes disk-related modifications to a VM.
-func updateHandleDiskChange(d *schema.ResourceData, vm *object.VirtualMachine, finder *find.Finder) error {
+func updateHandleDiskChange(c *govmomi.Client, d *schema.ResourceData, vm *object.VirtualMachine, configSpec *types.VirtualMachineConfigSpec, finder *find.Finder, datacenter *object.Datacenter) error {
 	var err error
 	oldDisks, newDisks := d.GetChange("disk")
 	oldDiskSet := oldDisks.(*schema.Set)
@@ -618,6 +622,9 @@ func updateHandleDiskChange(d *schema.ResourceData, vm *object.VirtualMachine, f
 
 	// Removed disks
 	added, removed, changed := diskGetAddedRemovedChanged(oldDiskSet, newDiskSet)
+	log.Printf("[DEBUG] Added: %#v", added)
+	log.Printf("[DEBUG] Removed: %#v", removed)
+	log.Printf("[DEBUG] Changed: %#v", changed)
 	for _, disk := range removed {
 		devices, err := vm.Device(context.TODO())
 		if err != nil {
@@ -695,8 +702,60 @@ func updateHandleDiskChange(d *schema.ResourceData, vm *object.VirtualMachine, f
 		}
 	}
 	for _, disk := range changed {
-		log.Printf("[ERROR] Disk changes not done yet: %#v", disk)
+		// for the moment only
+		log.Printf("[WARNING] Only disk size change is supported in this version")
+		// log.Printf("[ERROR] Disk changes not done yet: %#v", disk)
+		var datastore *object.Datastore
+		if disk["datastore"] == "" {
+			datastore, err = finder.DefaultDatastore(context.TODO())
+			if err != nil {
+				return fmt.Errorf("[ERROR] Update Remove Disk - Error finding datastore: %v", err)
+			}
+		} else {
+			datastore, err = finder.Datastore(context.TODO(), disk["datastore"].(string))
+			if err != nil {
+				log.Printf("[ERROR] Couldn't find datastore %v.  %s", disk["datastore"].(string), err)
+				return err
+			}
+		}
 
+		var size int64
+		if disk["size"] == 0 {
+			size = 0
+		} else {
+			size = int64(disk["size"].(int))
+		}
+
+		var mo mo.VirtualMachine
+		vm.Properties(context.TODO(), vm.Reference(), []string{"summary", "config"}, &mo)
+
+		var diskPath string
+		if disk["name"] != "" {
+			snapshotFullDir := mo.Config.Files.SnapshotDirectory
+			split := strings.Split(snapshotFullDir, " ")
+			if len(split) != 2 {
+				return fmt.Errorf("[ERROR] createVirtualMachine - failed to split snapshot directory: %v", snapshotFullDir)
+			}
+			vmWorkingPath := split[1]
+			diskPath = vmWorkingPath + disk["name"].(string)
+		} else if disk["vmdk"] != "" {
+			diskPath = disk["vmdk"].(string)
+		}
+		diskPath = datastore.Path(diskPath)
+		devices, err := vm.Device(context.TODO())
+		if err != nil {
+			return fmt.Errorf("[ERROR] Update Remove Disk - Could not get virtual device list: %v", err)
+		}
+		virtualDisk := devices.FindByKey(int32(disk["key"].(int)))
+
+		log.Printf("[DEBUG] Change disk %v → %d kB", diskPath, size*1024*1024)
+		vd := virtualDisk.(*types.VirtualDisk)
+		vd.CapacityInKB = size * 1024 * 1024
+		diskChange := &types.VirtualDeviceConfigSpec{
+			Operation: types.VirtualDeviceConfigSpecOperationEdit,
+			Device:    vd,
+		}
+		configSpec.DeviceChange = append(configSpec.DeviceChange, diskChange)
 	}
 	return nil
 }
@@ -764,11 +823,6 @@ func resourceVSphereVirtualMachineUpdate(d *schema.ResourceData, meta interface{
 		return err
 	}
 
-	if d.HasChange("disk") {
-		hasChanges = true
-		updateHandleDiskChange(d, vm, finder)
-	}
-
 	if d.HasChange("network_interface") {
 		hasChanges = true
 		var rebootRequiredLocal bool
@@ -777,6 +831,11 @@ func resourceVSphereVirtualMachineUpdate(d *schema.ResourceData, meta interface{
 		if err != nil {
 			return err
 		}
+	}
+
+	if d.HasChange("disk") {
+		hasChanges = true
+		updateHandleDiskChange(client, d, vm, &configSpec, finder, dc)
 	}
 
 	// do nothing if there are no changes
@@ -2436,6 +2495,7 @@ func populateResourceDataDisks(d *schema.ResourceData, devices []types.BaseVirtu
 			// vmdk case:  compare prevDisk["vmdk"] and mo.Filename
 			if diskName == prevDisk["name"] || diskPath == prevDisk["vmdk"] {
 
+				prevDisk["size"] = vd.CapacityInKB / 1024 / 1024
 				prevDisk["key"] = virtualDevice.Key
 				prevDisk["uuid"] = diskUUID
 
