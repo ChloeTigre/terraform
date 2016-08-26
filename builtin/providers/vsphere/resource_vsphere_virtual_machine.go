@@ -701,23 +701,11 @@ func updateHandleDiskChange(c *govmomi.Client, d *schema.ResourceData, vm *objec
 			return err
 		}
 	}
+	// modified disks
 	for _, disk := range changed {
 		// for the moment only
 		log.Printf("[WARNING] Only disk size change is supported in this version")
-		// log.Printf("[ERROR] Disk changes not done yet: %#v", disk)
-		var datastore *object.Datastore
-		if disk["datastore"] == "" {
-			datastore, err = finder.DefaultDatastore(context.TODO())
-			if err != nil {
-				return fmt.Errorf("[ERROR] Update Remove Disk - Error finding datastore: %v", err)
-			}
-		} else {
-			datastore, err = finder.Datastore(context.TODO(), disk["datastore"].(string))
-			if err != nil {
-				log.Printf("[ERROR] Couldn't find datastore %v.  %s", disk["datastore"].(string), err)
-				return err
-			}
-		}
+		log.Printf("[WARNING] VM templates are only supported if they have a single disk. Bugs will occur otherwise.")
 
 		var size int64
 		if disk["size"] == 0 {
@@ -728,27 +716,16 @@ func updateHandleDiskChange(c *govmomi.Client, d *schema.ResourceData, vm *objec
 
 		var mo mo.VirtualMachine
 		vm.Properties(context.TODO(), vm.Reference(), []string{"summary", "config"}, &mo)
-
-		var diskPath string
-		if disk["name"] != "" {
-			snapshotFullDir := mo.Config.Files.SnapshotDirectory
-			split := strings.Split(snapshotFullDir, " ")
-			if len(split) != 2 {
-				return fmt.Errorf("[ERROR] createVirtualMachine - failed to split snapshot directory: %v", snapshotFullDir)
-			}
-			vmWorkingPath := split[1]
-			diskPath = vmWorkingPath + disk["name"].(string)
-		} else if disk["vmdk"] != "" {
-			diskPath = disk["vmdk"].(string)
-		}
-		diskPath = datastore.Path(diskPath)
 		devices, err := vm.Device(context.TODO())
 		if err != nil {
-			return fmt.Errorf("[ERROR] Update Remove Disk - Could not get virtual device list: %v", err)
+			return fmt.Errorf("[ERROR] Update Modify Disk - Could not get virtual device list: %v", err)
 		}
 		virtualDisk := devices.FindByKey(int32(disk["key"].(int)))
+		if virtualDisk == nil {
+			return fmt.Errorf("[ERROR] Cannot find disk with key %v", disk["key"])
+		}
 
-		log.Printf("[DEBUG] Change disk %v → %d kB", diskPath, size*1024*1024)
+		log.Printf("[DEBUG] Change disk → %d kB", size*1024*1024)
 		vd := virtualDisk.(*types.VirtualDisk)
 		vd.CapacityInKB = size * 1024 * 1024
 		diskChange := &types.VirtualDeviceConfigSpec{
@@ -2484,6 +2461,9 @@ func populateResourceDataDisks(d *schema.ResourceData, devices []types.BaseVirtu
 			if prevDisk["template"] != "" {
 				if len(templateDisk) == 0 {
 					templateDisk = prevDisk
+					templateDisk["size"] = vd.CapacityInKB / 1024 / 1024
+					templateDisk["key"] = virtualDevice.Key
+					templateDisk["uuid"] = diskUUID
 					disks = append(disks, templateDisk)
 					break
 				}
