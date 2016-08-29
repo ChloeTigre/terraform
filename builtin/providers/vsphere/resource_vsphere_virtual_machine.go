@@ -1054,7 +1054,7 @@ func addHardDisk(vm *object.VirtualMachine, size, iops int64, diskType provision
 		return fmt.Errorf("[ERROR] addHardDisk - No path provided")
 	}
 	diskPath = datastore.Path(diskPath)
-	diskPath = fmt.Sprintf("[%v] %v", datastore.Name(), diskPath)
+	// diskPath = fmt.Sprintf("[%v] %v", datastore.Name(), diskPath)
 	log.Printf("[DEBUG] addHardDisk - diskPath: %v", diskPath)
 	disk := devices.CreateDisk(controller, datastore.Reference(), diskPath)
 
