@@ -48,4 +48,5 @@ The following arguments are supported:
 * `datacenter` - (Optional) The name of a Datacenter in which the file will be uploaded to.
 * `source_datastore` - (Optional) The name of the Datastore in which file will be copied from.
 * `datastore` - (Required) The name of the Datastore in which to upload the file to.
-* `create_directories` - (Optional) Create directories in `destination_file` path parameter if any missing for copy operation.  *Note: Directories are not deleted on destroy operation.
+* `create_directories` - (Optional) Create directories in `destination_file` path parameter if any missing for copy operation.  *Note: Directories are not deleted on destroy operation.*
+* `is_disk` - (Optional) Consider that this file is a disk image managed by vSphere. Allows to copy it using the CloneDisk facilities instead of the file copying facilities.
