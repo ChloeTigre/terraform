@@ -536,13 +536,17 @@ func ResourceVSphereVirtualMachine() *schema.Resource {
 }
 
 func resourceVSphereVirtualMachineCreate(d *schema.ResourceData, meta interface{}) error {
+	var err error
 	log.Printf("[INFO] VVMC")
 	client := meta.(*govmomi.Client)
 
 	vm := virtualMachine{}
-	populateVMStruct(d, &vm)
+	err = populateVMStruct(d, &vm)
+	if err != nil {
+		return err
+	}
 
-	err := vm.setupVirtualMachine(client)
+	err = vm.setupVirtualMachine(client)
 	if err != nil {
 		return err
 	}
@@ -695,7 +699,7 @@ func updateHandleDiskChange(c *govmomi.Client, d *schema.ResourceData, vm *objec
 			proviType = provisioningType(provtype.(string))
 		}
 		err = addHardDisk(vm, size, iops,
-			proviType, datastore, diskPath, controller_type)
+			proviType, datastore, diskPath, controller_type, configSpec)
 		if err != nil {
 			log.Printf("[ERROR] Add Hard Disk Failed: %v", err)
 			return err
@@ -956,12 +960,13 @@ func resourceVSphereVirtualMachineDelete(d *schema.ResourceData, meta interface{
 }
 
 // addHardDisk adds a new Hard Disk to the VirtualMachine.
-func addHardDisk(vm *object.VirtualMachine, size, iops int64, diskType provisioningType, datastore *object.Datastore, diskPath string, controller_type controllerType) error {
+func addHardDisk(vm *object.VirtualMachine, size, iops int64, diskType provisioningType, datastore *object.Datastore, diskPath string, controller_type controllerType, configSpec *types.VirtualMachineConfigSpec) error {
 	var err error
 	devices, err := vm.Device(context.TODO())
 	if err != nil {
 		return err
 	}
+	log.Printf("[DEBUG] addHardDisk")
 	log.Printf("[DEBUG] vm devices: %#v\n", devices)
 
 	var controller types.BaseVirtualController
@@ -1071,7 +1076,7 @@ func addHardDisk(vm *object.VirtualMachine, size, iops int64, diskType provision
 
 	if len(existing) != 0 {
 		log.Printf("[DEBUG] addHardDisk: Disk already present.\n")
-		return nil
+		return ensureRightDiskSize(vm, configSpec, disk, diskPath)
 	}
 	disk.CapacityInKB = int64(size * 1024 * 1024)
 	if iops != 0 {
@@ -1097,8 +1102,67 @@ func addHardDisk(vm *object.VirtualMachine, size, iops int64, diskType provision
 	log.Printf("[DEBUG] addHardDisk: %#v\n", disk)
 	log.Printf("[DEBUG] addHardDisk capacity: %#v\n", disk.CapacityInKB)
 
-	return vm.AddDevice(context.TODO(), disk)
+	if err = vm.AddDevice(context.TODO(), disk); err != nil {
+		oldCapacity := disk.CapacityInKB
+		disk.CapacityInKB = 0
+		disk.CapacityInBytes = 0
+		res := vm.AddDevice(context.TODO(), disk)
+		if res != nil {
+			return res
+		}
+
+		disk.CapacityInKB = oldCapacity
+		disk.CapacityInBytes = int64(size * 1024 * 1024 * 1024)
+		return ensureRightDiskSize(vm, configSpec, disk, diskPath)
+
+	}
+	return nil
+
 }
+
+// ensureRightDiskSize ensures a disk file has the right size
+func ensureRightDiskSize(vm *object.VirtualMachine, configSpec *types.VirtualMachineConfigSpec, disk *types.VirtualDisk, diskPath string) error {
+	devchng := types.VirtualDeviceConfigSpec{}
+	devchng.Device = disk
+	devchng.Operation = types.VirtualDeviceConfigSpecOperationEdit
+	devchng.FileOperation = ""
+	devices, err := vm.Device(context.TODO())
+
+	if err != nil {
+		return err
+	}
+	existing := devices.Select(func(device types.BaseVirtualDevice) bool {
+		switch o := device.(type) {
+		case *types.VirtualDisk:
+			foundFn := o.Backing.(types.BaseVirtualDeviceFileBackingInfo).GetVirtualDeviceFileBackingInfo().FileName
+			log.Printf("[DEBUG] disk filename [%s]-- filename [%s]", foundFn, diskPath)
+			return foundFn == diskPath
+		default:
+			return false
+		}
+	})
+	if len(existing) == 0 {
+		return fmt.Errorf("[ERROR] Cannot find disk. Bad news")
+	}
+	disk.Key = existing[0].GetVirtualDevice().Key
+	configSpec.DeviceChange = append(configSpec.DeviceChange, &devchng)
+	return nil
+}
+
+/*
+// addExistingDisk adds an existing VMDK to a VirtualMachine
+func addExistingDisk(vm *object.VirtualMachine, vmdkPath string, spec *types.VirtualMachineConfigSpec) error {
+	devspec := types.VirtualDiskConfigSpec{}
+	devspec.Operation = types.VirtualDeviceConfigSpecOperationAdd
+	backing := types.VirtualDeviceFileBackingInfo{}
+	backing.FileName = vmdkPath
+	devspec.Device = types.VirtualDisk{}
+	devspec.Device.GetVirtualDevice().Backing = &backing
+	spec.DeviceChange = append(spec.DeviceChange, &devspec)
+	return nil
+
+}
+// */
 
 func getSCSIControllers(vmDevices object.VirtualDeviceList) []*types.VirtualController {
 	// get virtual scsi controllers of all supported types
@@ -1419,6 +1483,7 @@ func findDatastore(c *govmomi.Client, sps types.StoragePlacementSpec) (*object.D
 // setupVirtualMachine sets a virtual machine up accordingly with the contents of the struct
 func (vm *virtualMachine) setupVirtualMachine(c *govmomi.Client) error {
 	dc, err := getDatacenter(c, vm.datacenter)
+	var task *object.Task
 
 	if err != nil {
 		return err
@@ -1427,10 +1492,11 @@ func (vm *virtualMachine) setupVirtualMachine(c *govmomi.Client) error {
 	finder = finder.SetDatacenter(dc)
 
 	// spawn the VM
-	newVM, networkDevices, networkConfigs, datastore, templateMo, err := vm.makeExist(c, dc, finder)
+	newVM, networkDevices, networkConfigs, datastore, templateMo, configSpec, err := vm.makeExist(c, dc, finder)
 	if err != nil {
 		return err
 	}
+	configSpec.DeviceChange = configSpec.DeviceChange[:0]
 	log.Printf("[DEBUG] new vm: %v", newVM)
 
 	// Create the cdroms if needed.
@@ -1438,7 +1504,7 @@ func (vm *virtualMachine) setupVirtualMachine(c *govmomi.Client) error {
 		return err
 	}
 	// add the hard disks
-	if err = vm.addHardDisks(newVM, datastore); err != nil {
+	if err = vm.addHardDisks(newVM, datastore, configSpec); err != nil {
 		return err
 	}
 
@@ -1452,6 +1518,13 @@ func (vm *virtualMachine) setupVirtualMachine(c *govmomi.Client) error {
 		return err
 	}
 
+	// apply the various remaining config changes
+	log.Printf("[DEBUG] Reconfiguring using %#v", configSpec)
+	task, err = newVM.Reconfigure(context.TODO(), *configSpec)
+	log.Printf("[DEBUG] Done reconfiguring")
+	if err = waitForTaskEnd(task, "Cannot complete vm.Reconfigure: %s"); err != nil {
+		return err
+	}
 	// boot the VM
 	if vm.hasBootableVmdk || vm.template != "" {
 		if err = powerOnVM(newVM); err != nil {
@@ -1634,7 +1707,7 @@ func (vm *virtualMachine) prepareCustomization(templateMo *mo.VirtualMachine) (t
 	}, nil
 }
 
-func (vm *virtualMachine) addHardDisks(vmObj *object.VirtualMachine, datastore *object.Datastore) error {
+func (vm *virtualMachine) addHardDisks(vmObj *object.VirtualMachine, datastore *object.Datastore, configSpec *types.VirtualMachineConfigSpec) error {
 	var vmMo = &mo.VirtualMachine{}
 	var err error
 	vmObj.Properties(context.TODO(), vmObj.Reference(), []string{"summary", "config"}, vmMo)
@@ -1661,7 +1734,7 @@ func (vm *virtualMachine) addHardDisks(vmObj *object.VirtualMachine, datastore *
 			return fmt.Errorf("[ERROR] setupVirtualMachine - Neither vmdk path nor vmdk name was given: %#v", vm.hardDisks[i])
 		}
 
-		err = addHardDisk(vmObj, vm.hardDisks[i].size, vm.hardDisks[i].iops, vm.hardDisks[i].initType, datastore, diskPath, vm.hardDisks[i].controller)
+		err = addHardDisk(vmObj, vm.hardDisks[i].size, vm.hardDisks[i].iops, vm.hardDisks[i].initType, datastore, diskPath, vm.hardDisks[i].controller, configSpec)
 		if err != nil {
 			return err
 		}
@@ -1869,49 +1942,49 @@ func (vm *virtualMachine) setupNetwork(finder *find.Finder) ([]types.BaseVirtual
 	return networkDevices, networkConfigs, nil
 }
 
-func (vm *virtualMachine) makeExist(c *govmomi.Client, dc *object.Datacenter, finder *find.Finder) (*object.VirtualMachine, []types.BaseVirtualDeviceConfigSpec, []types.CustomizationAdapterMapping, *object.Datastore, *mo.VirtualMachine, error) {
+func (vm *virtualMachine) makeExist(c *govmomi.Client, dc *object.Datacenter, finder *find.Finder) (*object.VirtualMachine, []types.BaseVirtualDeviceConfigSpec, []types.CustomizationAdapterMapping, *object.Datastore, *mo.VirtualMachine, *types.VirtualMachineConfigSpec, error) {
 	template, templateMo, err := vm.getTemplate(finder)
 	if err != nil {
-		return nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, err
 	}
 
 	resourcePool, err := getResourcePool(vm, finder)
 	if err != nil {
-		return nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, err
 	}
 	log.Printf("[DEBUG] resource pool: %#v", resourcePool)
 
 	dcFolders, err := dc.Folders(context.TODO())
 	if err != nil {
-		return nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, err
 	}
 	log.Printf("[DEBUG] folder: %#v", vm.folder)
 
 	folder, err := getProperFolder(vm, c, dcFolders.VmFolder)
 	if err != nil {
-		return nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, err
 	}
 
 	if err = vm.performConfigCoherenceTests(); err != nil {
-		return nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, err
 	}
 	// make config spec
 	configSpec := vm.bootstrapConfigSpec()
 	log.Printf("[DEBUG] virtual machine config spec: %v", configSpec)
 
 	if err = vm.extraConfig(configSpec); err != nil {
-		return nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, err
 	}
 
 	datastore, mds, err := vm.setupDatastore(c, resourcePool, template, dcFolders, configSpec, finder)
 	if err != nil {
-		return nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, err
 	}
 
 	// network
 	networkDevices, networkConfigs, err := vm.setupNetwork(finder)
 	if err != nil {
-		return nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, err
 	}
 
 	if vm.template == "" {
@@ -1920,11 +1993,11 @@ func (vm *virtualMachine) makeExist(c *govmomi.Client, dc *object.Datacenter, fi
 		err = createVMWithTemplate(vm.name, vm.linkedClone, vm.hardDisks[0].initType, template, templateMo, configSpec, resourcePool, datastore, folder)
 	}
 	if err != nil {
-		return nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, err
 	}
 
 	newVM, err := finder.VirtualMachine(context.TODO(), vm.Path())
-	return newVM, networkDevices, networkConfigs, datastore, templateMo, err
+	return newVM, networkDevices, networkConfigs, datastore, templateMo, configSpec, err
 }
 
 // utility functions for object.VirtualMachine objects
@@ -2235,13 +2308,16 @@ func populateVMStructWindowsOptConfig(d *schema.ResourceData, vm *virtualMachine
 }
 
 func populateVMStructDisk(d *schema.ResourceData, vm *virtualMachine) error {
+	log.Printf("[DEBUG] populateVMStructDisk::begin")
 	vL, ok := d.GetOk("disk")
 	if !ok {
+		log.Printf("[DEBUG] populateVMStructDisk - Cannot read disk")
 		return nil
 	}
 
 	diskSet, ok := vL.(*schema.Set)
 	if !ok {
+		log.Printf("[DEBUG] populateVMStructDisk::error cannot read diskSet")
 		return nil
 	}
 
@@ -2253,7 +2329,7 @@ func populateVMStructDisk(d *schema.ResourceData, vm *virtualMachine) error {
 
 		if v, ok := disk["template"].(string); ok && v != "" {
 			if v, ok := disk["name"].(string); ok && v != "" {
-				return fmt.Errorf("Cannot specify name of a template")
+				return fmt.Errorf("[ERROR] Cannot specify name of a template")
 			}
 			vm.template = v
 			if hasBootableDisk {
@@ -2272,13 +2348,17 @@ func populateVMStructDisk(d *schema.ResourceData, vm *virtualMachine) error {
 
 		if v, ok := disk["size"].(int); ok && v != 0 {
 			if v, ok := disk["template"].(string); ok && v != "" {
-				return fmt.Errorf("Cannot specify size of a template")
+				return fmt.Errorf("[ERROR] Cannot specify size of a template")
 			}
 
-			if v, ok := disk["name"].(string); ok && v != "" {
-				newDisk.name = v
+			if v, ok := disk["vmdk"].(string); ok && v != "" {
+				// ok case. what to do?
 			} else {
-				return fmt.Errorf("[ERROR] Disk name must be provided when creating a new disk")
+				if v, ok := disk["name"].(string); ok && v != "" {
+					newDisk.name = v
+				} else {
+					return fmt.Errorf("[ERROR] Disk name or vmdk path must be provided when specifying a disk size")
+				}
 			}
 
 			newDisk.size = int64(v)
@@ -2294,13 +2374,10 @@ func populateVMStructDisk(d *schema.ResourceData, vm *virtualMachine) error {
 
 		if vVmdk, ok := disk["vmdk"].(string); ok && vVmdk != "" {
 			if v, ok := disk["template"].(string); ok && v != "" {
-				return fmt.Errorf("Cannot specify a vmdk for a template")
+				return fmt.Errorf("[ERROR] Cannot specify a vmdk for a template")
 			}
 			if v, ok := disk["size"].(string); ok && v != "" {
-				return fmt.Errorf("Cannot specify size of a vmdk")
-			}
-			if v, ok := disk["name"].(string); ok && v != "" {
-				return fmt.Errorf("Cannot specify name of a vmdk")
+				return fmt.Errorf("[ERROR] Cannot specify size of a vmdk")
 			}
 			if vBootable, ok := disk["bootable"].(bool); ok {
 				hasBootableDisk = true
@@ -2318,6 +2395,7 @@ func populateVMStructDisk(d *schema.ResourceData, vm *virtualMachine) error {
 	}
 	vm.hardDisks = disks
 	log.Printf("[DEBUG] disk init: %v", disks)
+	log.Printf("[DEBUG] populateVMStructDisk::end")
 	return nil
 }
 
