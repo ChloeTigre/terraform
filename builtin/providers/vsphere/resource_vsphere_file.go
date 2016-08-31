@@ -22,6 +22,7 @@ type file struct {
 	destinationFile   string
 	createDirectories bool
 	copyFile          bool
+	isDiskFile        bool
 }
 
 func ResourceVSphereFile() *schema.Resource {
@@ -68,6 +69,12 @@ func ResourceVSphereFile() *schema.Resource {
 			"create_directories": {
 				Type:     schema.TypeBool,
 				Optional: true,
+			},
+
+			"is_disk": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				ForceNew: true,
 			},
 		},
 	}
@@ -116,6 +123,10 @@ func resourceVSphereFileCreate(d *schema.ResourceData, meta interface{}) error {
 		f.createDirectories = v.(bool)
 	}
 
+	if v, ok := d.GetOk("is_disk"); ok {
+		f.isDiskFile = v.(bool)
+	}
+
 	err := createFile(client, &f)
 	if err != nil {
 		return err
@@ -128,7 +139,7 @@ func resourceVSphereFileCreate(d *schema.ResourceData, meta interface{}) error {
 }
 
 func createFile(client *govmomi.Client, f *file) error {
-
+	var err error
 	finder := find.NewFinder(client.Client, true)
 
 	dc, err := finder.Datacenter(context.TODO(), f.datacenter)
@@ -156,6 +167,7 @@ func createFile(client *govmomi.Client, f *file) error {
 		}
 
 		fm := object.NewFileManager(client.Client)
+		dm := object.NewVirtualDiskManager(client.Client)
 		if f.createDirectories {
 			directoryPathIndex := strings.LastIndex(f.destinationFile, "/")
 			path := f.destinationFile[0:directoryPathIndex]
@@ -164,7 +176,12 @@ func createFile(client *govmomi.Client, f *file) error {
 				return fmt.Errorf("error %s", err)
 			}
 		}
-		task, err := fm.CopyDatastoreFile(context.TODO(), source_ds.Path(f.sourceFile), source_dc, ds.Path(f.destinationFile), dc, true)
+		var task *object.Task
+		if !f.isDiskFile {
+			task, err = fm.CopyDatastoreFile(context.TODO(), source_ds.Path(f.sourceFile), source_dc, ds.Path(f.destinationFile), dc, true)
+		} else {
+			task, err = dm.CopyVirtualDisk(context.TODO(), source_ds.Path(f.sourceFile), source_dc, ds.Path(f.destinationFile), dc, nil, true)
+		}
 
 		if err != nil {
 			return fmt.Errorf("error %s", err)
@@ -357,7 +374,7 @@ func resourceVSphereFileDelete(d *schema.ResourceData, meta interface{}) error {
 
 	err := deleteFile(client, &f)
 	if err != nil {
-		return err
+		log.Printf("[ERROR] deleteFile: %[1]T %#[1]v", err)
 	}
 
 	d.SetId("")
