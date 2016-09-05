@@ -729,6 +729,10 @@ func updateHandleDiskChange(c *govmomi.Client, d *schema.ResourceData, vm *objec
 			return fmt.Errorf("[ERROR] Cannot find disk with key %v", disk["key"])
 		}
 
+		if size == 0 {
+			log.Printf("[DEBUG] size spec for disk update is at 0, skipping")
+			return nil
+		}
 		log.Printf("[DEBUG] Change disk → %d kB", size*1024*1024)
 		vd := virtualDisk.(*types.VirtualDisk)
 		vd.CapacityInKB = size * 1024 * 1024
@@ -1061,6 +1065,7 @@ func addHardDisk(vm *object.VirtualMachine, size, iops int64, diskType provision
 	diskPath = datastore.Path(diskPath)
 	// diskPath = fmt.Sprintf("[%v] %v", datastore.Name(), diskPath)
 	log.Printf("[DEBUG] addHardDisk - diskPath: %v", diskPath)
+
 	disk := devices.CreateDisk(controller, datastore.Reference(), diskPath)
 
 	if strings.Contains(string(controller_type), "scsi") {
