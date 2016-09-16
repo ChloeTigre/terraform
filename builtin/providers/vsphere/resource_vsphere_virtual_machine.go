@@ -94,13 +94,15 @@ func (ni networkInterfaceList) Swap(i, j int) {
 }
 
 type hardDisk struct {
-	name       string
-	size       int64
-	iops       int64
-	initType   provisioningType
-	vmdkPath   string
-	controller controllerType
-	bootable   bool
+	name         string
+	size         int64
+	iops         int64
+	initType     provisioningType
+	vmdkPath     string
+	controller   controllerType
+	bootable     bool
+	alias        string
+	diskObjectId string
 }
 
 //Additional options Vsphere can use clones of windows machines
@@ -441,6 +443,38 @@ func ResourceVSphereVirtualMachine() *schema.Resource {
 			"disk": &schema.Schema{
 				Type:     schema.TypeSet,
 				Required: true,
+				Set: func(el interface{}) int {
+					asmap := el.(map[string]interface{})
+					// don't take the device_key in account
+					hashmap := networkMap{}
+					tries := [][]string{
+						[]string{"template", "type", "datastore", "size", "name", "iops", "vmdk", "bootable", "alias", "controller_type"},
+					}
+					for _, try := range tries {
+						found1 := 0
+						hs := ""
+						for _, k := range try {
+							if v, ok := asmap[k]; ok {
+								hs += strings.ToUpper(fmt.Sprintf("%v-", v))
+								found1++
+							}
+							if found1 == len(try) {
+								log.Printf("[DEBUG] Built hash with %#v", hs)
+								return hashcode.String(hs)
+							}
+						}
+					}
+					log.Printf("[DEBUG] Falling back on other hash for %#v", asmap)
+					for k, v := range asmap {
+						if k == "label" || k == "device_key" {
+							hashmap[k] = v
+						}
+					}
+					ssm := sortedStringMap(hashmap)
+					res := hashcode.String(ssm)
+					log.Printf("Hash for %#v is %d", hashmap, res)
+					return 0
+				},
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"uuid": &schema.Schema{
@@ -507,6 +541,17 @@ func ResourceVSphereVirtualMachine() *schema.Resource {
 							Default:      controllerTypeSCSI,
 							ValidateFunc: validatorFromValue("controller_type", controllerTypeValuesAsInterface),
 						},
+
+						"alias": &schema.Schema{
+							Type:     schema.TypeString,
+							Required: true,
+						},
+						"disk_object_id": &schema.Schema{
+							Type:      schema.TypeString,
+							Optional:  true,
+							Computed:  true,
+							Sensitive: true,
+						},
 					},
 				},
 			},
@@ -552,9 +597,33 @@ func resourceVSphereVirtualMachineCreate(d *schema.ResourceData, meta interface{
 	}
 
 	d.SetId(vm.Path())
+
+	// update disk uuid field in the tfstate once Created
+	err = updateDiskUuidFields(d, &vm)
+	if err != nil {
+		return err
+	}
+
 	log.Printf("[INFO] Created virtual machine: %s", d.Id())
 
 	return resourceVSphereVirtualMachineRead(d, meta)
+}
+
+func updateDiskUuidFields(d *schema.ResourceData, vm *virtualMachine) error {
+	disksState := d.Get("disk").(*schema.Set)
+	for _, dsk := range vm.hardDisks {
+		for _, dskMatchRaw := range disksState.List() {
+			dskMatch := dskMatchRaw.(map[string]interface{})
+			if dskMatch["alias"] != dsk.alias {
+				continue
+			}
+			disksState.Remove(dskMatchRaw)
+			dskMatch["disk_object_id"] = dsk.diskObjectId
+			disksState.Add(dskMatch)
+		}
+	}
+	d.Set("disk", disksState)
+	return nil
 }
 
 func diskGetAddedRemovedChanged(oldDiskSet, newDiskSet *schema.Set) (added, removed, changed []map[string]interface{}) {
@@ -572,10 +641,15 @@ func diskGetAddedRemovedChanged(oldDiskSet, newDiskSet *schema.Set) (added, remo
 			continue
 		}
 		switch {
-		case disk["vmdk"].(string) != "":
-			diskId = disk["vmdk"].(string)
-		case disk["name"].(string) != "":
-			diskId = disk["name"].(string)
+		case disk["alias"].(string) != "":
+			diskId = disk["alias"].(string)
+		default:
+			log.Printf("[DEBUG] diskObj: !! %#v", disk)
+			panic("oops")
+			// case disk["vmdk"].(string) != "":
+			// 	diskId = disk["vmdk"].(string)
+			// case disk["name"].(string) != "":
+			// 	diskId = disk["name"].(string)
 		}
 		removedM[diskId] = disk
 
@@ -588,10 +662,15 @@ func diskGetAddedRemovedChanged(oldDiskSet, newDiskSet *schema.Set) (added, remo
 		}
 		var diskId string
 		switch {
-		case disk["vmdk"].(string) != "":
-			diskId = disk["vmdk"].(string)
-		case disk["name"].(string) != "":
-			diskId = disk["name"].(string)
+		case disk["alias"].(string) != "":
+			diskId = disk["alias"].(string)
+		default:
+			log.Printf("[DEBUG] diskObj: !! %#v", disk)
+			panic("oops")
+			// case disk["vmdk"].(string) != "":
+			// 	diskId = disk["vmdk"].(string)
+			// case disk["name"].(string) != "":
+			// 	diskId = disk["name"].(string)
 		}
 		addedM[diskId] = disk
 	}
@@ -698,7 +777,7 @@ func updateHandleDiskChange(c *govmomi.Client, d *schema.ResourceData, vm *objec
 		} else {
 			proviType = provisioningType(provtype.(string))
 		}
-		err = addHardDisk(vm, size, iops,
+		err = addHardDisk2(vm, size, iops,
 			proviType, datastore, diskPath, controller_type, configSpec)
 		if err != nil {
 			log.Printf("[ERROR] Add Hard Disk Failed: %v", err)
@@ -963,9 +1042,33 @@ func resourceVSphereVirtualMachineDelete(d *schema.ResourceData, meta interface{
 	return nil
 }
 
+//func addHardDisk2() err {
+//	err = addHardDisk2(vm, size, iops,
+//		proviType, datastore, diskPath, controller_type, configSpec)
+
+//}
+func addHardDisk2(vm *object.VirtualMachine, size, iops int64, diskType provisioningType, datastore *object.Datastore, diskPath string, controller_type controllerType, configSpec *types.VirtualMachineConfigSpec) error {
+	vdS := hardDisk{
+		size:       size,
+		iops:       iops,
+		controller: controller_type,
+		initType:   diskType,
+	}
+
+	return addHardDisk(vm, &vdS, datastore, diskPath, configSpec)
+}
+
 // addHardDisk adds a new Hard Disk to the VirtualMachine.
-func addHardDisk(vm *object.VirtualMachine, size, iops int64, diskType provisioningType, datastore *object.Datastore, diskPath string, controller_type controllerType, configSpec *types.VirtualMachineConfigSpec) error {
+//func addHardDisk(vm *object.VirtualMachine, size, iops int64, diskType provisioningType, datastore *object.Datastore, diskPath string, controller_type controllerType, configSpec *types.VirtualMachineConfigSpec) error
+func addHardDisk(vm *object.VirtualMachine, diskStruct *hardDisk, datastore *object.Datastore, diskPath string, configSpec *types.VirtualMachineConfigSpec) error {
+	// &vm.hardDisks[i], datastore *object.Datastore, diskPath, configSpec)
+	// func addHardDisk(vm *object.VirtualMachine, diskStruct hardDisk size, iops int64, diskType provisioningType, datastore *object.Datastore, diskPath string, controller_type controllerType, configSpec *types.VirtualMachineConfigSpec) error {
 	var err error
+	size := diskStruct.size
+	iops := diskStruct.iops
+	diskType := diskStruct.initType
+	controller_type := diskStruct.controller
+
 	devices, err := vm.Device(context.TODO())
 	if err != nil {
 		return err
@@ -1080,8 +1183,9 @@ func addHardDisk(vm *object.VirtualMachine, size, iops int64, diskType provision
 	log.Printf("[DEBUG] disk: %#v\n", disk)
 
 	if len(existing) != 0 {
+		log.Printf("[DEBUG] Matches: %#v", existing)
 		log.Printf("[DEBUG] addHardDisk: Disk already present.\n")
-		return ensureRightDiskSize(vm, configSpec, disk, diskPath)
+		return ensureRightDiskSize(vm, configSpec, disk, diskPath, diskStruct)
 	}
 	disk.CapacityInKB = int64(size * 1024 * 1024)
 	if iops != 0 {
@@ -1118,7 +1222,8 @@ func addHardDisk(vm *object.VirtualMachine, size, iops int64, diskType provision
 
 		disk.CapacityInKB = oldCapacity
 		disk.CapacityInBytes = int64(size * 1024 * 1024 * 1024)
-		return ensureRightDiskSize(vm, configSpec, disk, diskPath)
+		diskStruct.diskObjectId = disk.DiskObjectId
+		return ensureRightDiskSize(vm, configSpec, disk, diskPath, diskStruct)
 
 	}
 	return nil
@@ -1126,7 +1231,7 @@ func addHardDisk(vm *object.VirtualMachine, size, iops int64, diskType provision
 }
 
 // ensureRightDiskSize ensures a disk file has the right size
-func ensureRightDiskSize(vm *object.VirtualMachine, configSpec *types.VirtualMachineConfigSpec, disk *types.VirtualDisk, diskPath string) error {
+func ensureRightDiskSize(vm *object.VirtualMachine, configSpec *types.VirtualMachineConfigSpec, disk *types.VirtualDisk, diskPath string, diskStruct *hardDisk) error {
 	devchng := types.VirtualDeviceConfigSpec{}
 	devchng.Device = disk
 	devchng.Operation = types.VirtualDeviceConfigSpecOperationEdit
@@ -1150,6 +1255,7 @@ func ensureRightDiskSize(vm *object.VirtualMachine, configSpec *types.VirtualMac
 		return fmt.Errorf("[ERROR] Cannot find disk. Bad news")
 	}
 	disk.Key = existing[0].GetVirtualDevice().Key
+	diskStruct.diskObjectId = existing[0].(*types.VirtualDisk).DiskObjectId
 	configSpec.DeviceChange = append(configSpec.DeviceChange, &devchng)
 	return nil
 }
@@ -1739,7 +1845,8 @@ func (vm *virtualMachine) addHardDisks(vmObj *object.VirtualMachine, datastore *
 			return fmt.Errorf("[ERROR] setupVirtualMachine - Neither vmdk path nor vmdk name was given: %#v", vm.hardDisks[i])
 		}
 
-		err = addHardDisk(vmObj, vm.hardDisks[i].size, vm.hardDisks[i].iops, vm.hardDisks[i].initType, datastore, diskPath, vm.hardDisks[i].controller, configSpec)
+		//err = addHardDisk(vmObj, vm.hardDisks[i].size, vm.hardDisks[i].iops, vm.hardDisks[i].initType, datastore, diskPath, vm.hardDisks[i].controller, configSpec)
+		err = addHardDisk(vmObj, &vm.hardDisks[i], datastore, diskPath, configSpec)
 		if err != nil {
 			return err
 		}
@@ -2509,6 +2616,7 @@ func populateResourceDataDisks(d *schema.ResourceData, devices []types.BaseVirtu
 		backingInfo := virtualDevice.Backing
 		var diskFullPath string
 		var diskUUID string
+		var diskObjectId string
 		if v, ok := backingInfo.(*types.VirtualDiskFlatVer2BackingInfo); ok {
 			diskFullPath = v.FileName
 			diskUUID = v.Uuid
@@ -2516,6 +2624,7 @@ func populateResourceDataDisks(d *schema.ResourceData, devices []types.BaseVirtu
 			diskFullPath = v.FileName
 			diskUUID = v.Uuid
 		}
+		diskObjectId = vd.DiskObjectId
 		log.Printf("[DEBUG] resourceVSphereVirtualMachineRead - Analyzing disk: %v", diskFullPath)
 
 		// Separate datastore and path
@@ -2538,6 +2647,7 @@ func populateResourceDataDisks(d *schema.ResourceData, devices []types.BaseVirtu
 		if !ok {
 			continue
 		}
+		updatedPrev := false
 		for _, v := range prevDiskSet.List() {
 			prevDisk := v.(map[string]interface{})
 			// We're guaranteed only one template disk.  Passing value directly through since templates should be immutable
@@ -2547,7 +2657,9 @@ func populateResourceDataDisks(d *schema.ResourceData, devices []types.BaseVirtu
 					templateDisk["size"] = vd.CapacityInKB / 1024 / 1024
 					templateDisk["key"] = virtualDevice.Key
 					templateDisk["uuid"] = diskUUID
+					templateDisk["disk_object_id"] = vd.DiskObjectId
 					disks = append(disks, templateDisk)
+					updatedPrev = true
 					break
 				}
 			}
@@ -2556,15 +2668,27 @@ func populateResourceDataDisks(d *schema.ResourceData, devices []types.BaseVirtu
 			// of creating a new disk for the user.
 			// size case:  name was set by user, compare parsed filename from mo.filename (without path or .vmdk extension) with name
 			// vmdk case:  compare prevDisk["vmdk"] and mo.Filename
-			if diskName == prevDisk["name"] || diskPath == prevDisk["vmdk"] {
+
+			if diskName == prevDisk["name"] || diskPath == prevDisk["vmdk"] || diskObjectId == prevDisk["disk_object_id"] {
 
 				prevDisk["size"] = vd.CapacityInKB / 1024 / 1024
 				prevDisk["key"] = virtualDevice.Key
 				prevDisk["uuid"] = diskUUID
+				prevDisk["disk_object_id"] = vd.DiskObjectId
 
 				disks = append(disks, prevDisk)
+				updatedPrev = true
 				break
 			}
+		}
+		if !updatedPrev {
+			newDisk := map[string]interface{}{}
+			newDisk["size"] = vd.CapacityInKB / 1024 / 1024
+			newDisk["key"] = virtualDevice.Key
+			newDisk["uuid"] = diskUUID
+			newDisk["name"] = diskName
+			newDisk["disk_object_id"] = vd.DiskObjectId
+			disks = append(disks, newDisk)
 		}
 		log.Printf("[DEBUG] disks: %#v", disks)
 	}
