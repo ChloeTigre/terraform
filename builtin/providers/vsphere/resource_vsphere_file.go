@@ -76,12 +76,6 @@ func ResourceVSphereFile() *schema.Resource {
 				Optional: true,
 				ForceNew: true,
 			},
-
-			"frozen": {
-				Type:     schema.TypeBool,
-				Optional: true,
-				ForceNew: true,
-			},
 		},
 	}
 }
@@ -250,11 +244,6 @@ func resourceVSphereFileRead(d *schema.ResourceData, meta interface{}) error {
 		return fmt.Errorf("destination_file argument is required")
 	}
 
-	if _, ok := d.GetOk("frozen"); ok && d.Get("frozen").(bool) {
-		log.Printf("[INFO] Not updating frozen file")
-		return nil
-	}
-
 	client := meta.(*govmomi.Client)
 	finder := find.NewFinder(client.Client, true)
 
@@ -286,10 +275,7 @@ func resourceVSphereFileRead(d *schema.ResourceData, meta interface{}) error {
 func resourceVSphereFileUpdate(d *schema.ResourceData, meta interface{}) error {
 
 	log.Printf("[DEBUG] updating file: %#v", d)
-	if _, ok := d.GetOk("frozen"); ok && d.Get("frozen").(bool) {
-		log.Printf("[INFO] Not updating frozen file")
-		return nil
-	}
+
 	if d.HasChange("destination_file") || d.HasChange("datacenter") || d.HasChange("datastore") {
 		// File needs to be moved, get old and new destination changes
 		var oldDataceneter, newDatacenter, oldDatastore, newDatastore, oldDestinationFile, newDestinationFile string
@@ -358,6 +344,7 @@ func resourceVSphereFileUpdate(d *schema.ResourceData, meta interface{}) error {
 }
 
 func resourceVSphereFileDelete(d *schema.ResourceData, meta interface{}) error {
+
 	log.Printf("[DEBUG] deleting file: %#v", d)
 	f := file{}
 
