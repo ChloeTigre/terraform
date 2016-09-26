@@ -65,6 +65,7 @@ func Provider() terraform.ResourceProvider {
 
 		ResourcesMap: map[string]*schema.Resource{
 			"vsphere_file":            ResourceVSphereFile(),
+			"vsphere_frozen_file":     ResourceVSphereFrozenFile(),
 			"vsphere_folder":          ResourceVSphereFolder(),
 			"vsphere_virtual_disk":    ResourceVSphereVirtualDisk(),
 			"vsphere_virtual_machine": ResourceVSphereVirtualMachine(),
