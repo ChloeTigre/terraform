@@ -1184,8 +1184,12 @@ func addHardDisk(vm *object.VirtualMachine, diskStruct *hardDisk, datastore *obj
 
 	if len(existing) != 0 {
 		log.Printf("[DEBUG] Matches: %#v", existing)
-		log.Printf("[DEBUG] addHardDisk: Disk already present.\n")
-		return ensureRightDiskSize(vm, configSpec, disk, diskPath, diskStruct)
+		log.Printf("[DEBUG] addHardDisk: Disk already present.")
+		if size != 0 {
+			log.Printf("[DEBUG] Resizing to %d\n", size)
+			return ensureRightDiskSize(vm, configSpec, disk, diskPath, diskStruct)
+		}
+		return nil
 	}
 	disk.CapacityInKB = int64(size * 1024 * 1024)
 	if iops != 0 {
