@@ -183,6 +183,12 @@ func createFrozenFile(client *govmomi.Client, f *frozenFile) error {
 			return fmt.Errorf("error %s", err)
 		}
 
+		// strange race condition occurs sometimes
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[DEBUG] recovered from task.WaitForResult for copyFile")
+			}
+		}()
 		_, err = task.WaitForResult(context.TODO(), nil)
 		if err != nil {
 			return fmt.Errorf("error %s", err)
@@ -260,19 +266,25 @@ func resourceVsphereFrozenFileDelete(d *schema.ResourceData, meta interface{}) e
 	if v, ok := d.GetOk("datastore"); ok {
 		f.datastore = v.(string)
 	} else {
-		return fmt.Errorf("datastore argument is required")
+		d.SetId("")
+		log.Printf("[ERROR] datastore argument is required")
+		return nil
 	}
 
 	if v, ok := d.GetOk("source_file"); ok {
 		f.sourceFile = v.(string)
 	} else {
-		return fmt.Errorf("source_file argument is required")
+		d.SetId("")
+		log.Printf("[ERROR] source_file argument is required")
+		return nil
 	}
 
 	if v, ok := d.GetOk("destination_file"); ok {
 		f.destinationFile = v.(string)
 	} else {
-		return fmt.Errorf("destination_file argument is required")
+		d.SetId("")
+		log.Printf("[ERROR] destination_file argument is required")
+		return nil
 	}
 
 	client := meta.(*govmomi.Client)
@@ -304,7 +316,9 @@ func deleteFrozenFile(client *govmomi.Client, f *frozenFile) error {
 	fm := object.NewFileManager(client.Client)
 	task, err := fm.DeleteDatastoreFile(context.TODO(), ds.Path(f.destinationFile), dc)
 	if err != nil {
+		log.Printf("[ERROR] Could not delete file.")
 		return err
+
 	}
 
 	_, err = task.WaitForResult(context.TODO(), nil)

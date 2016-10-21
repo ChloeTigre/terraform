@@ -547,10 +547,9 @@ func ResourceVSphereVirtualMachine() *schema.Resource {
 							Required: true,
 						},
 						"disk_object_id": &schema.Schema{
-							Type:      schema.TypeString,
-							Optional:  true,
-							Computed:  true,
-							Sensitive: true,
+							Type:     schema.TypeString,
+							Optional: true,
+							Computed: true,
 						},
 					},
 				},
@@ -618,7 +617,8 @@ func updateDiskUuidFields(d *schema.ResourceData, vm *virtualMachine) error {
 				continue
 			}
 			disksState.Remove(dskMatchRaw)
-			dskMatch["disk_object_id"] = dsk.diskObjectId
+			dskMatch["disk_object_id"] = extractLocalPartFromDiskObjectId(dsk.diskObjectId)
+			log.Printf("[DEBUG] Found match %s : %#v", dsk.alias, dskMatch)
 			disksState.Add(dskMatch)
 		}
 	}
@@ -777,8 +777,9 @@ func updateHandleDiskChange(c *govmomi.Client, d *schema.ResourceData, vm *objec
 		} else {
 			proviType = provisioningType(provtype.(string))
 		}
+		alias := disk["alias"].(string)
 		err = addHardDisk2(vm, size, iops,
-			proviType, datastore, diskPath, controller_type, configSpec)
+			proviType, datastore, diskPath, alias, controller_type, configSpec)
 		if err != nil {
 			log.Printf("[ERROR] Add Hard Disk Failed: %v", err)
 			return err
@@ -1047,7 +1048,7 @@ func resourceVSphereVirtualMachineDelete(d *schema.ResourceData, meta interface{
 //		proviType, datastore, diskPath, controller_type, configSpec)
 
 //}
-func addHardDisk2(vm *object.VirtualMachine, size, iops int64, diskType provisioningType, datastore *object.Datastore, diskPath string, controller_type controllerType, configSpec *types.VirtualMachineConfigSpec) error {
+func addHardDisk2(vm *object.VirtualMachine, size, iops int64, diskType provisioningType, datastore *object.Datastore, diskPath, alias string, controller_type controllerType, configSpec *types.VirtualMachineConfigSpec) error {
 	vdS := hardDisk{
 		size:       size,
 		iops:       iops,
@@ -1226,7 +1227,7 @@ func addHardDisk(vm *object.VirtualMachine, diskStruct *hardDisk, datastore *obj
 
 		disk.CapacityInKB = oldCapacity
 		disk.CapacityInBytes = int64(size * 1024 * 1024 * 1024)
-		diskStruct.diskObjectId = disk.DiskObjectId
+		diskStruct.diskObjectId = extractLocalPartFromDiskObjectId(disk.DiskObjectId)
 		return ensureRightDiskSize(vm, configSpec, disk, diskPath, diskStruct)
 
 	}
@@ -1259,7 +1260,7 @@ func ensureRightDiskSize(vm *object.VirtualMachine, configSpec *types.VirtualMac
 		return fmt.Errorf("[ERROR] Cannot find disk. Bad news")
 	}
 	disk.Key = existing[0].GetVirtualDevice().Key
-	diskStruct.diskObjectId = existing[0].(*types.VirtualDisk).DiskObjectId
+	diskStruct.diskObjectId = extractLocalPartFromDiskObjectId(existing[0].(*types.VirtualDisk).DiskObjectId)
 	configSpec.DeviceChange = append(configSpec.DeviceChange, &devchng)
 	return nil
 }
@@ -2171,9 +2172,16 @@ func destroyVM(vm *object.VirtualMachine) error {
 
 func powerOnVM(vm *object.VirtualMachine) error {
 	var err error
-	vm.PowerOn(context.TODO())
-	err = vm.WaitForPowerState(context.TODO(), types.VirtualMachinePowerStatePoweredOn)
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
 	if err != nil {
+		return err
+	}
+	func() {
+		defer cancel()
+		err = vm.WaitForPowerState(ctx, types.VirtualMachinePowerStatePoweredOn)
+		_, err = vm.WaitForNetIP(ctx, true)
+	}()
+	if err != context.DeadlineExceeded && err != nil {
 		return err
 	}
 	return nil
@@ -2628,7 +2636,7 @@ func populateResourceDataDisks(d *schema.ResourceData, devices []types.BaseVirtu
 			diskFullPath = v.FileName
 			diskUUID = v.Uuid
 		}
-		diskObjectId = vd.DiskObjectId
+		diskObjectId = extractLocalPartFromDiskObjectId(vd.DiskObjectId)
 		log.Printf("[DEBUG] resourceVSphereVirtualMachineRead - Analyzing disk: %v", diskFullPath)
 
 		// Separate datastore and path
@@ -2661,9 +2669,10 @@ func populateResourceDataDisks(d *schema.ResourceData, devices []types.BaseVirtu
 					templateDisk["size"] = vd.CapacityInKB / 1024 / 1024
 					templateDisk["key"] = virtualDevice.Key
 					templateDisk["uuid"] = diskUUID
-					templateDisk["disk_object_id"] = vd.DiskObjectId
+					templateDisk["disk_object_id"] = extractLocalPartFromDiskObjectId(vd.DiskObjectId)
 					disks = append(disks, templateDisk)
 					updatedPrev = true
+					log.Printf("[DEBUG] We have an updated disk 2: %#v", templateDisk)
 					break
 				}
 			}
@@ -2673,15 +2682,16 @@ func populateResourceDataDisks(d *schema.ResourceData, devices []types.BaseVirtu
 			// size case:  name was set by user, compare parsed filename from mo.filename (without path or .vmdk extension) with name
 			// vmdk case:  compare prevDisk["vmdk"] and mo.Filename
 
-			if diskName == prevDisk["name"] || diskPath == prevDisk["vmdk"] || diskObjectId == prevDisk["disk_object_id"] {
+			if diskName == prevDisk["name"] || diskPath == prevDisk["vmdk"] || diskObjectId == extractLocalPartFromDiskObjectId(prevDisk["disk_object_id"].(string)) {
 
 				prevDisk["size"] = vd.CapacityInKB / 1024 / 1024
 				prevDisk["key"] = virtualDevice.Key
 				prevDisk["uuid"] = diskUUID
-				prevDisk["disk_object_id"] = vd.DiskObjectId
+				prevDisk["disk_object_id"] = extractLocalPartFromDiskObjectId(vd.DiskObjectId)
 
 				disks = append(disks, prevDisk)
 				updatedPrev = true
+				log.Printf("[DEBUG] We have an updated disk: %#v", prevDisk)
 				break
 			}
 		}
@@ -2691,7 +2701,8 @@ func populateResourceDataDisks(d *schema.ResourceData, devices []types.BaseVirtu
 			newDisk["key"] = virtualDevice.Key
 			newDisk["uuid"] = diskUUID
 			newDisk["name"] = diskName
-			newDisk["disk_object_id"] = vd.DiskObjectId
+			newDisk["disk_object_id"] = extractLocalPartFromDiskObjectId(vd.DiskObjectId)
+			log.Printf("[DEBUG] We have a new disk: %#v", newDisk)
 			disks = append(disks, newDisk)
 		}
 		log.Printf("[DEBUG] disks: %#v", disks)
@@ -3054,4 +3065,14 @@ func buildNICChangeSpec(added, removed []interface{}, gateway string, config *ty
 
 	}
 	return rebootRequired, nil
+}
+
+func extractLocalPartFromDiskObjectId(doi string) string {
+	// this only takes the second part of the given string
+	// this is because vMotion will change the disks ID (rant done to vSphere)
+	// contrarily to what the API says at http://bit.ly/2dApi4P
+	if strings.Contains(doi, "-") {
+		return strings.SplitN(doi, "-", 2)[1]
+	}
+	return doi
 }
